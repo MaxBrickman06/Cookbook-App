@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cookbook App — Demo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">Cookbook</h1>
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-action="nav" data-view="library">Library</button>
+      <button class="tab" data-action="nav" data-view="fridge">Fridge</button>
+      <button class="tab" data-action="nav" data-view="lists">Lists</button>
+      <button class="tab" data-action="nav" data-view="import">Import</button>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <footer class="footer">
+    CS3560 Project 2 · demo build · data is saved in this browser only
+    <button class="link-btn" data-action="reset-demo">Reset demo data</button>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
