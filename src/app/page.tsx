@@ -15,7 +15,9 @@ export default function Home() {
         <section className="recipes-section">
           <div className="section-header">
             <div>
-              <p className="section-label">YOUR COLLECTION</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-orange-600">
+                YOUR COLLECTION
+              </p>
               <h2>Featured Recipes</h2>
             </div>
 
