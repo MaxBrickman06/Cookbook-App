@@ -1,8 +1,10 @@
+
 import Navbar from "@/components/Navbar";
 import {
   pantryIngredients,
   shoppingList,
 } from "@/data/ingredients";
+import styles from "./page.module.css";
 
 const categories = [
   "All",
@@ -18,27 +20,32 @@ export default function PantryPage() {
     <>
       <Navbar />
 
-      <main className="pantry-page">
-        <section className="pantry-header">
+      <main className={styles.pantryPage}>
+        <section className={styles.pantryHeader}>
           <div>
-            <p className="section-label">YOUR KITCHEN</p>
+            <p className={styles.sectionLabel}>
+              YOUR KITCHEN
+            </p>
 
             <h1>Pantry</h1>
 
-            <p className="pantry-intro">
+            <p className={styles.pantryIntro}>
               Keep track of what you have at home and what
               you need to pick up.
             </p>
           </div>
 
-          <button className="add-ingredient-button">
+          <button
+            type="button"
+            className={styles.addIngredientButton}
+          >
             + Add Ingredient
           </button>
         </section>
 
-        <section className="pantry-layout">
-          <div className="pantry-main">
-            <div className="pantry-section-header">
+        <section className={styles.pantryLayout}>
+          <div className={styles.pantryMain}>
+            <div className={styles.pantrySectionHeader}>
               <div>
                 <h2>What You Have</h2>
                 <span>
@@ -47,48 +54,49 @@ export default function PantryPage() {
               </div>
             </div>
 
-            <div className="pantry-search">
+            <div className={styles.pantrySearch}>
               <span>⌕</span>
 
               <input
                 type="text"
                 placeholder="Search ingredients..."
+                aria-label="Search ingredients"
               />
             </div>
 
-            <div className="pantry-categories">
+            <div className={styles.pantryCategories}>
               {categories.map((category, index) => (
                 <button
                   key={category}
-                  className={
-                    index === 0
-                      ? "pantry-category active"
-                      : "pantry-category"
-                  }
+                  type="button"
+                  className={`${styles.pantryCategory} ${
+                    index === 0 ? styles.active : ""
+                  }`}
                 >
                   {category}
                 </button>
               ))}
             </div>
 
-            <div className="ingredient-grid">
+            <div className={styles.ingredientGrid}>
               {pantryIngredients.map((ingredient) => (
                 <article
                   key={ingredient.id}
-                  className="ingredient-card"
+                  className={styles.ingredientCard}
                 >
-                  <div className="ingredient-icon">
+                  <div className={styles.ingredientIcon}>
                     {getIngredientIcon(ingredient.category)}
                   </div>
 
-                  <div className="ingredient-info">
+                  <div className={styles.ingredientInfo}>
                     <span>{ingredient.category}</span>
                     <h3>{ingredient.name}</h3>
                     <p>{ingredient.quantity}</p>
                   </div>
 
                   <button
-                    className="ingredient-menu"
+                    type="button"
+                    className={styles.ingredientMenu}
                     aria-label={`Options for ${ingredient.name}`}
                   >
                     •••
@@ -98,21 +106,23 @@ export default function PantryPage() {
             </div>
           </div>
 
-          <aside className="shopping-list">
-            <div className="shopping-header">
+          <aside className={styles.shoppingList}>
+            <div className={styles.shoppingHeader}>
               <div>
-                <p className="section-label">SHOPPING</p>
+                <p className={styles.sectionLabel}>
+                  SHOPPING
+                </p>
                 <h2>Need to Buy</h2>
               </div>
 
               <span>{shoppingList.length}</span>
             </div>
 
-            <div className="shopping-items">
+            <div className={styles.shoppingItems}>
               {shoppingList.map((item) => (
                 <label
                   key={item.id}
-                  className="shopping-item"
+                  className={styles.shoppingItem}
                 >
                   <input type="checkbox" />
 
@@ -124,7 +134,10 @@ export default function PantryPage() {
               ))}
             </div>
 
-            <button className="shopping-button">
+            <button
+              type="button"
+              className={styles.shoppingButton}
+            >
               View Shopping List →
             </button>
           </aside>

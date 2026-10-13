@@ -1,0 +1,325 @@
+
+/* Pantry Page */
+
+.pantryPage {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 70px 24px 100px;
+}
+
+.pantryHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.sectionLabel {
+  margin-bottom: 16px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.pantryHeader h1 {
+  font-size: clamp(42px, 6vw, 64px);
+  line-height: 1;
+  letter-spacing: -3px;
+}
+
+.pantryIntro {
+  max-width: 500px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.addIngredientButton {
+  padding: 13px 20px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.addIngredientButton:hover {
+  background: var(--accent-dark);
+}
+
+/* Pantry Layout */
+
+.pantryLayout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 60px;
+  margin-top: 60px;
+}
+
+.pantrySectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.pantrySectionHeader h2 {
+  font-size: 26px;
+  letter-spacing: -1px;
+}
+
+.pantrySectionHeader span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Pantry Search */
+
+.pantrySearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+}
+
+.pantrySearch span {
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.pantrySearch input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.pantrySearch input::placeholder {
+  color: #aaa69d;
+}
+
+/* Categories */
+
+.pantryCategories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 25px;
+}
+
+.pantryCategory {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: white;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pantryCategory.active {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: white;
+}
+
+/* Ingredient Cards */
+
+.ingredientGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.ingredientCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+}
+
+.ingredientIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--background);
+  font-size: 21px;
+}
+
+.ingredientInfo {
+  min-width: 0;
+}
+
+.ingredientInfo > span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ingredientInfo h3 {
+  margin-top: 3px;
+  font-size: 15px;
+}
+
+.ingredientInfo p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ingredientMenu {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  border: none;
+  background: transparent;
+  color: #aaa69d;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+/* Shopping List */
+
+.shoppingList {
+  align-self: start;
+  padding: 25px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.shoppingHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shoppingHeader .sectionLabel {
+  margin-bottom: 7px;
+}
+
+.shoppingHeader h2 {
+  font-size: 24px;
+  letter-spacing: -1px;
+}
+
+.shoppingHeader > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--foreground);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shoppingItems {
+  padding: 8px 0;
+}
+
+.shoppingItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  cursor: pointer;
+}
+
+.shoppingItem input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.shoppingItem p {
+  font-size: 14px;
+}
+
+.shoppingItem span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.shoppingButton {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shoppingButton:hover {
+  background: var(--background);
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+  .pantryLayout {
+    grid-template-columns: 1fr;
+    gap: 50px;
+  }
+
+  .shoppingList {
+    max-width: 500px;
+  }
+}
+
+@media (max-width: 600px) {
+  .pantryPage {
+    padding: 50px 18px 80px;
+  }
+
+  .pantryHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .addIngredientButton {
+    width: 100%;
+  }
+
+  .pantryLayout {
+    margin-top: 45px;
+  }
+
+  .ingredientGrid {
+    grid-template-columns: 1fr;
+  }
+}
