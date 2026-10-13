@@ -332,3 +332,40 @@
     text-align: center;
   }
 }
+
+/* Drag-and-Drop Image Upload */
+
+.dragActive {
+  border-color: var(--accent);
+  background: #fdf3ed;
+}
+
+.imagePreviewContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.imagePreview {
+  width: 100%;
+  max-width: 500px;
+  height: 300px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.removeImageButton {
+  border: none;
+  background: transparent;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.formError {
+  color: #b91c1c;
+  font-size: 14px;
+}
