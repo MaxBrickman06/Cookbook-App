@@ -1,21 +1,16 @@
-
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Recipe } from "@/data/recipes";
-import {
-  isFavorite,
-  toggleFavorite,
-} from "@/lib/favorites";
+import { isFavorite, toggleFavorite } from "@/lib/favorites";
+import styles from "./RecipeCard.module.css";
 
 type RecipeCardProps = {
   recipe: Recipe;
 };
 
-export default function RecipeCard({
-  recipe,
-}: RecipeCardProps) {
+export default function RecipeCard({ recipe }: RecipeCardProps) {
   const [favorite, setFavorite] = useState(false);
 
   useEffect(() => {
@@ -25,53 +20,44 @@ export default function RecipeCard({
       setFavorite(isFavorite(recipe.id));
     };
 
-    window.addEventListener(
-      "favoritesChanged",
-      handleFavoritesChanged
-    );
+    window.addEventListener("favoritesChanged", handleFavoritesChanged);
 
     return () => {
-      window.removeEventListener(
-        "favoritesChanged",
-        handleFavoritesChanged
-      );
+      window.removeEventListener("favoritesChanged", handleFavoritesChanged);
     };
   }, [recipe.id]);
 
   function handleFavorite() {
     const newFavoriteState = toggleFavorite(recipe.id);
-
     setFavorite(newFavoriteState);
   }
 
   return (
-    <article className="recipe-card">
-      <div className="recipe-image-container">
+    <article className={styles.recipeCard}>
+      <div className={styles.recipeImageContainer}>
         <img
           src={recipe.image}
           alt={recipe.title}
-          className="recipe-image"
+          className={styles.recipeImage}
         />
 
         <button
-          className={
-            favorite
-              ? "favorite-button favorite-active"
-              : "favorite-button"
-          }
+          type="button"
+          className={`${styles.favoriteButton} ${
+            favorite ? styles.favoriteActive : ""
+          }`}
           aria-label={
-            favorite
-              ? "Remove from favorites"
-              : "Add to favorites"
+            favorite ? "Remove from favorites" : "Add to favorites"
           }
+          aria-pressed={favorite}
           onClick={handleFavorite}
         >
           {favorite ? "♥" : "♡"}
         </button>
       </div>
 
-      <div className="recipe-content">
-        <div className="recipe-meta">
+      <div className={styles.recipeContent}>
+        <div className={styles.recipeMeta}>
           <span>{recipe.category}</span>
           <span>{recipe.cookTime}</span>
         </div>
@@ -82,7 +68,7 @@ export default function RecipeCard({
 
         <Link
           href={`/recipes/${recipe.id}`}
-          className="view-recipe-button"
+          className={styles.viewRecipeButton}
         >
           View Recipe →
         </Link>
