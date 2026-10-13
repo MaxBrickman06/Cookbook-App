@@ -1,11 +1,13 @@
 
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import RecipeCard from "@/components/RecipeCard";
 import { recipes } from "@/data/recipes";
 import { getFavoriteIds } from "@/lib/favorites";
-import { useEffect, useState } from "react";
+import styles from "./page.module.css";
 
 export default function FavoritesPage() {
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
@@ -38,22 +40,24 @@ export default function FavoritesPage() {
     <>
       <Navbar />
 
-      <main className="favorites-page">
-        <section className="favorites-header">
+      <main className={styles.favoritesPage}>
+        <section className={styles.favoritesHeader}>
           <div>
-            <p className="section-label">YOUR COLLECTION</p>
+            <p className={styles.sectionLabel}>
+              YOUR COLLECTION
+            </p>
 
             <h1>Favorites</h1>
 
-            <p className="favorites-intro">
+            <p className={styles.favoritesIntro}>
               Keep the recipes you love most in one place.
             </p>
           </div>
         </section>
 
         {favoriteRecipes.length > 0 ? (
-          <section className="favorites-section">
-            <div className="favorites-section-header">
+          <section className={styles.favoritesSection}>
+            <div className={styles.favoritesSectionHeader}>
               <div>
                 <h2>Your Favorites</h2>
 
@@ -66,7 +70,7 @@ export default function FavoritesPage() {
               </div>
             </div>
 
-            <div className="recipe-grid">
+            <div className={styles.recipeGrid}>
               {favoriteRecipes.map((recipe) => (
                 <RecipeCard
                   key={recipe.id}
@@ -76,8 +80,8 @@ export default function FavoritesPage() {
             </div>
           </section>
         ) : (
-          <section className="empty-favorites">
-            <div className="empty-favorites-icon">
+          <section className={styles.emptyFavorites}>
+            <div className={styles.emptyFavoritesIcon}>
               ♡
             </div>
 
@@ -88,12 +92,12 @@ export default function FavoritesPage() {
               here.
             </p>
 
-            <a
+            <Link
               href="/recipes"
-              className="browse-favorites-button"
+              className={styles.browseFavoritesButton}
             >
               Browse Recipes →
-            </a>
+            </Link>
           </section>
         )}
       </main>

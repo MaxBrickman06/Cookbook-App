@@ -1,0 +1,131 @@
+
+/* Favorites Page */
+
+.favoritesPage {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 70px 24px 100px;
+}
+
+.sectionLabel {
+  margin-bottom: 16px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.favoritesHeader h1 {
+  font-size: clamp(42px, 6vw, 64px);
+  line-height: 1;
+  letter-spacing: -3px;
+}
+
+.favoritesIntro {
+  max-width: 500px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* Favorites Collection */
+
+.favoritesSection {
+  margin-top: 65px;
+}
+
+.favoritesSectionHeader {
+  margin-bottom: 25px;
+}
+
+.favoritesSectionHeader h2 {
+  font-size: 26px;
+  letter-spacing: -1px;
+}
+
+.favoritesSectionHeader span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Recipe Grid */
+
+.recipeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* Empty Favorites */
+
+.emptyFavorites {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  max-width: 600px;
+  margin: 100px auto 0;
+  text-align: center;
+}
+
+.emptyFavoritesIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 70px;
+  margin-bottom: 25px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: white;
+  color: var(--accent);
+  font-size: 30px;
+}
+
+.emptyFavorites h2 {
+  font-size: 28px;
+  letter-spacing: -1px;
+}
+
+.emptyFavorites p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.browseFavoritesButton {
+  display: inline-block;
+  margin-top: 25px;
+  padding: 12px 18px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.browseFavoritesButton:hover {
+  background: var(--accent-dark);
+}
+
+/* Responsive */
+
+@media (max-width: 800px) {
+  .recipeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .favoritesPage {
+    padding: 50px 18px 80px;
+  }
+
+  .favoritesSection {
+    margin-top: 50px;
+  }
+}
