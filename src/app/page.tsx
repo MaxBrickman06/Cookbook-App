@@ -1,8 +1,9 @@
-
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import RecipeCard from "@/components/RecipeCard";
 import { recipes } from "@/data/recipes";
+import styles from "./page.module.css";
 
 export default function Home() {
   return (
@@ -12,23 +13,30 @@ export default function Home() {
       <main>
         <Hero />
 
-        <section className="recipes-section">
-          <div className="section-header">
+        <section className={styles.recipesSection}>
+          <div className={styles.sectionHeader}>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-orange-600">
+              <p className={styles.sectionLabel}>
                 YOUR COLLECTION
               </p>
+
               <h2>Featured Recipes</h2>
             </div>
 
-            <a href="/recipes" className="view-all-button">
+            <Link
+              href="/recipes"
+              className={styles.viewAllButton}
+            >
               View all →
-            </a>
+            </Link>
           </div>
 
-          <div className="recipe-grid">
+          <div className={styles.recipeGrid}>
             {recipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+              />
             ))}
           </div>
         </section>
