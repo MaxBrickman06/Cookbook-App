@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import type { Recipe } from "@/data/recipes";
 import {
   getMissingIngredients,
@@ -13,14 +13,26 @@ type IngredientAvailabilityProps = {
   ingredients: Recipe["ingredients"];
 };
 
+function subscribe() {
+  return () => {};
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 export default function IngredientAvailability({
   ingredients,
 }: IngredientAvailabilityProps) {
-  const [pantryReady, setPantryReady] = useState(false);
-
-  useEffect(() => {
-    setPantryReady(true);
-  }, []);
+  const pantryReady = useSyncExternalStore(
+    subscribe,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
   const ingredientNames = ingredients.map(
     (ingredient) => ingredient.name
@@ -64,7 +76,6 @@ export default function IngredientAvailability({
               }`}
             >
               <span>{ingredient.amount}</span>
-
               <p>{ingredient.name}</p>
 
               <strong>

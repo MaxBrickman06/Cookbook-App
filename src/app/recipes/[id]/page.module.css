@@ -272,3 +272,14 @@
     font-size: 10px;
   }
 }
+
+.recipeDetailImageContainer {
+  position: relative;
+  height: 550px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.recipeDetailImage {
+  object-fit: cover;
+}

@@ -5,6 +5,7 @@ import { recipes } from "@/data/recipes";
 import FavoriteRecipeButton from "./FavoriteRecipeButton";
 import IngredientAvailability from "./IngredientAvailability";
 import styles from "./page.module.css";
+import Image from "next/image";
 
 type RecipePageProps = {
   params: Promise<{
@@ -33,9 +34,11 @@ export default async function RecipePage({
 
       <section className={styles.recipeDetailHero}>
         <div className={styles.recipeDetailImageContainer}>
-          <img
+          <Image
             src={recipe.image}
             alt={recipe.title}
+            fill
+            sizes="(max-width: 800px) 100vw, 55vw"
             className={styles.recipeDetailImage}
           />
         </div>

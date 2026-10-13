@@ -1,59 +1,28 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Recipe } from "@/data/recipes";
-import { isFavorite, toggleFavorite } from "@/lib/favorites";
+import type { Recipe } from "@/data/recipes";
+import FavoriteButton from "./FavoriteButton";
 import styles from "./RecipeCard.module.css";
+import Image from "next/image";
 
 type RecipeCardProps = {
   recipe: Recipe;
 };
 
-export default function RecipeCard({ recipe }: RecipeCardProps) {
-  const [favorite, setFavorite] = useState(false);
-
-  useEffect(() => {
-    setFavorite(isFavorite(recipe.id));
-
-    const handleFavoritesChanged = () => {
-      setFavorite(isFavorite(recipe.id));
-    };
-
-    window.addEventListener("favoritesChanged", handleFavoritesChanged);
-
-    return () => {
-      window.removeEventListener("favoritesChanged", handleFavoritesChanged);
-    };
-  }, [recipe.id]);
-
-  function handleFavorite() {
-    const newFavoriteState = toggleFavorite(recipe.id);
-    setFavorite(newFavoriteState);
-  }
-
+export default function RecipeCard({
+  recipe,
+}: RecipeCardProps) {
   return (
     <article className={styles.recipeCard}>
       <div className={styles.recipeImageContainer}>
-        <img
+        <Image
           src={recipe.image}
           alt={recipe.title}
+          fill
+          sizes="(max-width: 800px) 100vw, 33vw"
           className={styles.recipeImage}
         />
 
-        <button
-          type="button"
-          className={`${styles.favoriteButton} ${
-            favorite ? styles.favoriteActive : ""
-          }`}
-          aria-label={
-            favorite ? "Remove from favorites" : "Add to favorites"
-          }
-          aria-pressed={favorite}
-          onClick={handleFavorite}
-        >
-          {favorite ? "♥" : "♡"}
-        </button>
+        <FavoriteButton recipeId={recipe.id} />
       </div>
 
       <div className={styles.recipeContent}>
