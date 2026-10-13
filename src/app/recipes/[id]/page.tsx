@@ -1,18 +1,9 @@
 
-"use client";
-
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { useEffect, useState } from "react";
 import { recipes } from "@/data/recipes";
-import {
-  getMissingIngredients,
-  hasIngredient,
-} from "@/lib/pantry";
-import {
-  isFavorite,
-  toggleFavorite,
-} from "@/lib/favorites";
+import FavoriteRecipeButton from "./FavoriteRecipeButton";
+import IngredientAvailability from "./IngredientAvailability";
 import styles from "./page.module.css";
 
 type RecipePageProps = {
@@ -21,49 +12,17 @@ type RecipePageProps = {
   }>;
 };
 
-export default function RecipePage({
+export default async function RecipePage({
   params,
 }: RecipePageProps) {
-  const [recipeId, setRecipeId] = useState<number | null>(
-    null
-  );
-
-  const [favorite, setFavorite] = useState(false);
-  const [pantryReady, setPantryReady] = useState(false);
-
-  useEffect(() => {
-    params.then(({ id }) => {
-      const numericId = Number(id);
-
-      setRecipeId(numericId);
-      setFavorite(isFavorite(numericId));
-      setPantryReady(true);
-    });
-  }, [params]);
-
-  if (recipeId === null) {
-    return null;
-  }
+  const { id } = await params;
 
   const recipe = recipes.find(
-    (recipe) => recipe.id === recipeId
+    (item) => item.id === Number(id)
   );
 
   if (!recipe) {
     notFound();
-  }
-
-  const ingredientNames = recipe.ingredients.map(
-    (ingredient) => ingredient.name
-  );
-
-  const missingIngredients = pantryReady
-    ? getMissingIngredients(ingredientNames)
-    : [];
-
-  function handleFavorite() {
-    const newFavoriteState = toggleFavorite(recipe.id);
-    setFavorite(newFavoriteState);
   }
 
   return (
@@ -105,76 +64,14 @@ export default function RecipePage({
             </div>
           </div>
 
-          <button
-            type="button"
-            className={styles.favoriteRecipeButton}
-            onClick={handleFavorite}
-            aria-pressed={favorite}
-          >
-            {favorite
-              ? "♥ Remove from Favorites"
-              : "♡ Add to Favorites"}
-          </button>
+          <FavoriteRecipeButton recipeId={recipe.id} />
         </div>
       </section>
 
       <section className={styles.recipeDetailContent}>
-        <div className={styles.ingredientsSection}>
-          <div className={styles.ingredientsHeader}>
-            <div>
-              <h2>Ingredients</h2>
-
-              <p>
-                {recipe.ingredients.length -
-                  missingIngredients.length}{" "}
-                of {recipe.ingredients.length} ingredients
-                available
-              </p>
-            </div>
-          </div>
-
-          <div className={styles.ingredientsList}>
-            {recipe.ingredients.map((ingredient) => {
-              const available = pantryReady
-                ? hasIngredient(ingredient.name)
-                : false;
-
-              return (
-                <div
-                  key={ingredient.name}
-                  className={`${styles.ingredientRow} ${
-                    available
-                      ? styles.available
-                      : styles.missing
-                  }`}
-                >
-                  <span>{ingredient.amount}</span>
-
-                  <p>{ingredient.name}</p>
-
-                  <strong>
-                    {available ? "✓ Have" : "Need"}
-                  </strong>
-                </div>
-              );
-            })}
-          </div>
-
-          {missingIngredients.length > 0 && (
-            <button
-              type="button"
-              className={styles.shoppingListButton}
-            >
-              + Add Missing Ingredients to Shopping List
-            </button>
-          )}
-
-          {missingIngredients.length === 0 && (
-            <div className={styles.allIngredientsMessage}>
-              ✓ You have everything needed for this recipe.
-            </div>
-          )}
-        </div>
+        <IngredientAvailability
+          ingredients={recipe.ingredients}
+        />
 
         <div className={styles.directionsSection}>
           <h2>Directions</h2>
