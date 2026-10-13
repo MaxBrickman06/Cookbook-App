@@ -98,3 +98,5 @@ export const recipes: Recipe[] = [
     ],
   },
 ];
+
+export type CreateRecipeInput = Omit<Recipe, "id">;
