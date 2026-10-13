@@ -1,34 +1,29 @@
+
 import Link from "next/link";
+import styles from "./page.module.css";
 
 export default function NewRecipePage() {
   return (
-    <main className="new-recipe-page">
-      <Link href="/recipes" className="back-link">
+    <main className={styles.newRecipePage}>
+      <Link href="/recipes" className={styles.backLink}>
         ← Back to recipes
       </Link>
 
-      <section className="new-recipe-header">
-        <p className="section-label">YOUR COLLECTION</p>
-
+      <section className={styles.newRecipeHeader}>
+        <p className={styles.sectionLabel}>YOUR COLLECTION</p>
         <h1>Add a Recipe</h1>
-
-        <p>
-          Add a recipe to your personal cookbook.
-        </p>
+        <p>Add a recipe to your personal cookbook.</p>
       </section>
 
-      <form className="recipe-form">
-        <section className="form-section">
-          <div className="form-section-header">
+      <form className={styles.recipeForm}>
+        <section className={styles.formSection}>
+          <div className={styles.formSectionHeader}>
             <h2>Recipe Details</h2>
             <span>01</span>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="title">
-              Recipe Name
-            </label>
-
+          <div className={styles.formGroup}>
+            <label htmlFor="title">Recipe Name</label>
             <input
               id="title"
               type="text"
@@ -36,11 +31,8 @@ export default function NewRecipePage() {
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="description">
-              Description
-            </label>
-
+          <div className={styles.formGroup}>
+            <label htmlFor="description">Description</label>
             <textarea
               id="description"
               rows={4}
@@ -48,36 +40,20 @@ export default function NewRecipePage() {
             />
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="category">
-                Category
-              </label>
-
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="category">Category</label>
               <select id="category" defaultValue="">
-                <option value="" disabled>
-                  Select a category
-                </option>
-                <option value="Breakfast">
-                  Breakfast
-                </option>
-                <option value="Lunch">
-                  Lunch
-                </option>
-                <option value="Dinner">
-                  Dinner
-                </option>
-                <option value="Dessert">
-                  Dessert
-                </option>
+                <option value="" disabled>Select a category</option>
+                <option value="Breakfast">Breakfast</option>
+                <option value="Lunch">Lunch</option>
+                <option value="Dinner">Dinner</option>
+                <option value="Dessert">Dessert</option>
               </select>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="cook-time">
-                Cook Time
-              </label>
-
+            <div className={styles.formGroup}>
+              <label htmlFor="cook-time">Cook Time</label>
               <input
                 id="cook-time"
                 type="text"
@@ -85,11 +61,8 @@ export default function NewRecipePage() {
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="servings">
-                Servings
-              </label>
-
+            <div className={styles.formGroup}>
+              <label htmlFor="servings">Servings</label>
               <input
                 id="servings"
                 type="number"
@@ -100,108 +73,81 @@ export default function NewRecipePage() {
           </div>
         </section>
 
-        <section className="form-section">
-          <div className="form-section-header">
+        <section className={styles.formSection}>
+          <div className={styles.formSectionHeader}>
             <h2>Ingredients</h2>
             <span>02</span>
           </div>
 
-          <p className="form-section-description">
-            Add everything you'll need to make this recipe.
+          <p className={styles.formSectionDescription}>
+            Add everything you&apos;ll need to make this recipe.
           </p>
 
-          <div className="ingredient-input-row">
-            <input
-              type="text"
-              placeholder="Amount"
-            />
-
-            <input
-              type="text"
-              placeholder="Ingredient name"
-            />
+          <div className={styles.ingredientInputRow}>
+            <input type="text" placeholder="Amount" />
+            <input type="text" placeholder="Ingredient name" />
 
             <button
               type="button"
-              className="remove-ingredient-button"
+              className={styles.removeIngredientButton}
               aria-label="Remove ingredient"
             >
               ×
             </button>
           </div>
 
-          <button
-            type="button"
-            className="add-row-button"
-          >
+          <button type="button" className={styles.addRowButton}>
             + Add Ingredient
           </button>
         </section>
 
-        <section className="form-section">
-          <div className="form-section-header">
+        <section className={styles.formSection}>
+          <div className={styles.formSectionHeader}>
             <h2>Directions</h2>
             <span>03</span>
           </div>
 
-          <p className="form-section-description">
+          <p className={styles.formSectionDescription}>
             Walk through the recipe step by step.
           </p>
 
-          <div className="direction-input-row">
+          <div className={styles.directionInputRow}>
             <span>1</span>
-
             <textarea
               rows={3}
               placeholder="Describe the first step..."
             />
           </div>
 
-          <button
-            type="button"
-            className="add-row-button"
-          >
+          <button type="button" className={styles.addRowButton}>
             + Add Step
           </button>
         </section>
 
-        <section className="form-section">
-          <div className="form-section-header">
+        <section className={styles.formSection}>
+          <div className={styles.formSectionHeader}>
             <h2>Recipe Image</h2>
             <span>04</span>
           </div>
 
-          <div className="image-upload">
-            <div className="upload-icon">↑</div>
-
+          <div className={styles.imageUpload}>
+            <div className={styles.uploadIcon}>↑</div>
             <h3>Upload an image</h3>
-
             <p>
-              Drag and drop an image here, or click to
-              browse.
+              Drag and drop an image here, or click to browse.
             </p>
-
-            <button
-              type="button"
-              className="upload-button"
-            >
+            <button type="button" className={styles.uploadButton}>
               Choose Image
             </button>
           </div>
         </section>
 
-        <div className="form-actions">
-          <Link
-            href="/recipes"
-            className="cancel-button"
-          >
+        <div className={styles.formActions}>
+          <Link href="/recipes" className={styles.cancelButton}>
             Cancel
           </Link>
 
-          <button
-            type="submit"
-            className="save-recipe-button"
-          >
+          <button type="submit" className={styles.saveRecipeButton}>
             Save Recipe →
           </button>
         </div>

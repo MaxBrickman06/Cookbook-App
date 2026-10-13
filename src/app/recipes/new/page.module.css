@@ -1,0 +1,334 @@
+
+.newRecipePage {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 55px 24px 100px;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 35px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--foreground);
+}
+
+.sectionLabel {
+  margin-bottom: 16px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.newRecipeHeader {
+  margin-top: 45px;
+  margin-bottom: 55px;
+}
+
+.newRecipeHeader h1 {
+  margin-top: 8px;
+  font-size: clamp(42px, 6vw, 64px);
+  line-height: 1;
+  letter-spacing: -3px;
+}
+
+.newRecipeHeader p:last-child {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+/* Form */
+
+.recipeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.formSection {
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+
+.formSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  margin-bottom: 25px;
+  border-bottom: 1px solid var(--border);
+}
+
+.formSectionHeader h2 {
+  font-size: 22px;
+  letter-spacing: -0.7px;
+}
+
+.formSectionHeader span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.formSectionDescription {
+  margin-top: -10px;
+  margin-bottom: 25px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Inputs */
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formGroup + .formGroup {
+  margin-top: 22px;
+}
+
+.formGroup label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.formGroup input,
+.formGroup textarea,
+.formGroup select,
+.ingredientInputRow input,
+.directionInputRow textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 14px;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.formGroup textarea,
+.directionInputRow textarea {
+  resize: vertical;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus,
+.formGroup select:focus,
+.ingredientInputRow input:focus,
+.directionInputRow textarea:focus {
+  border-color: var(--accent);
+  background: white;
+}
+
+.formGroup input::placeholder,
+.formGroup textarea::placeholder,
+.ingredientInputRow input::placeholder,
+.directionInputRow textarea::placeholder {
+  color: #aaa69d;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 15px;
+  margin-top: 22px;
+}
+
+.formRow .formGroup {
+  margin-top: 0;
+}
+
+/* Ingredients */
+
+.ingredientInputRow {
+  display: grid;
+  grid-template-columns: 150px 1fr 40px;
+  gap: 10px;
+  align-items: center;
+}
+
+.removeIngredientButton {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.removeIngredientButton:hover {
+  color: var(--accent);
+}
+
+.addRowButton {
+  margin-top: 15px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Directions */
+
+.directionInputRow {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.directionInputRow > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--foreground);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Image Upload */
+
+.imageUpload {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding: 45px 20px;
+  border: 1px dashed #cfc9bd;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.uploadIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 15px;
+  border-radius: 50%;
+  background: var(--background);
+  color: var(--accent);
+  font-size: 22px;
+}
+
+.imageUpload h3 {
+  font-size: 15px;
+}
+
+.imageUpload p {
+  max-width: 350px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.uploadButton {
+  margin-top: 18px;
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Form Actions */
+
+.formActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.cancelButton {
+  padding: 12px 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.saveRecipeButton {
+  padding: 13px 22px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saveRecipeButton:hover {
+  background: var(--accent-dark);
+}
+
+/* Responsive */
+
+@media (max-width: 700px) {
+  .newRecipePage {
+    padding: 40px 18px 80px;
+  }
+
+  .newRecipeHeader {
+    margin-top: 35px;
+    margin-bottom: 40px;
+  }
+
+  .formSection {
+    padding: 22px;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+
+  .ingredientInputRow {
+    grid-template-columns: 1fr 40px;
+  }
+
+  .ingredientInputRow input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .cancelButton,
+  .saveRecipeButton {
+    width: 100%;
+    text-align: center;
+  }
+}
