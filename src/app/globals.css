@@ -896,34 +896,6 @@ body {
   }
 }
 
-/* New Recipe Page */
-
-.new-recipe-page {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 55px 24px 100px;
-}
-
-.new-recipe-header {
-  margin-top: 45px;
-  margin-bottom: 55px;
-}
-
-.new-recipe-header h1 {
-  margin-top: 8px;
-
-  font-size: clamp(42px, 6vw, 64px);
-  line-height: 1;
-  letter-spacing: -3px;
-}
-
-.new-recipe-header p:last-child {
-  margin-top: 16px;
-
-  color: var(--muted);
-  font-size: 16px;
-}
-
 /* Form */
 
 .recipe-form {
@@ -1226,45 +1198,6 @@ body {
 
 .save-recipe-button:hover {
   background: var(--accent-dark);
-}
-
-/* New Recipe Mobile */
-
-@media (max-width: 700px) {
-  .new-recipe-page {
-    padding: 40px 18px 80px;
-  }
-
-  .new-recipe-header {
-    margin-top: 35px;
-    margin-bottom: 40px;
-  }
-
-  .form-section {
-    padding: 22px;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .ingredient-input-row {
-    grid-template-columns: 1fr 40px;
-  }
-
-  .ingredient-input-row input:first-child {
-    grid-column: 1 / -1;
-  }
-
-  .form-actions {
-    flex-direction: column-reverse;
-  }
-
-  .cancel-button,
-  .save-recipe-button {
-    width: 100%;
-    text-align: center;
-  }
 }
 
 /* Hero Links */
