@@ -2,9 +2,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import RecipeCard from "@/components/RecipeCard";
 import { recipes } from "@/data/recipes";
+import styles from "./page.module.css";
 
 const categories = [
   "All",
@@ -35,33 +37,36 @@ export default function RecipesPage() {
     <>
       <Navbar />
 
-      <main className="recipes-page">
-        <section className="recipes-header">
+      <main className={styles.recipesPage}>
+        <section className={styles.recipesHeader}>
           <div>
-            <p className="section-label">YOUR COLLECTION</p>
+            <p className={styles.sectionLabel}>
+              YOUR COLLECTION
+            </p>
 
             <h1>Recipes</h1>
 
-            <p className="recipes-intro">
+            <p className={styles.recipesIntro}>
               Browse through your collection of favorite recipes.
             </p>
           </div>
 
-          <a
+          <Link
             href="/recipes/new"
-            className="add-recipe-button"
+            className={styles.addRecipeButton}
           >
             + Add Recipe
-          </a>
+          </Link>
         </section>
 
-        <section className="recipe-controls">
-          <div className="search-container">
+        <section className={styles.recipeControls}>
+          <div className={styles.searchContainer}>
             <span>⌕</span>
 
             <input
               type="text"
               placeholder="Search recipes..."
+              aria-label="Search recipes"
               value={searchQuery}
               onChange={(event) =>
                 setSearchQuery(event.target.value)
@@ -69,18 +74,20 @@ export default function RecipesPage() {
             />
           </div>
 
-          <div className="category-filters">
+          <div className={styles.categoryFilters}>
             {categories.map((category) => (
               <button
                 key={category}
+                type="button"
                 onClick={() =>
                   setSelectedCategory(category)
                 }
-                className={
+                className={`${styles.categoryButton} ${
                   selectedCategory === category
-                    ? "category-button active"
-                    : "category-button"
-                }
+                    ? styles.active
+                    : ""
+                }`}
+                aria-pressed={selectedCategory === category}
               >
                 {category}
               </button>
@@ -88,8 +95,8 @@ export default function RecipesPage() {
           </div>
         </section>
 
-        <section className="library-section">
-          <div className="library-header">
+        <section className={styles.librarySection}>
+          <div className={styles.libraryHeader}>
             <div>
               <h2>All Recipes</h2>
 
@@ -103,7 +110,7 @@ export default function RecipesPage() {
           </div>
 
           {filteredRecipes.length > 0 ? (
-            <div className="recipe-grid">
+            <div className={styles.recipeGrid}>
               {filteredRecipes.map((recipe) => (
                 <RecipeCard
                   key={recipe.id}
@@ -112,8 +119,8 @@ export default function RecipesPage() {
               ))}
             </div>
           ) : (
-            <div className="no-results">
-              <div className="no-results-icon">
+            <div className={styles.noResults}>
+              <div className={styles.noResultsIcon}>
                 ⌕
               </div>
 
@@ -124,7 +131,8 @@ export default function RecipesPage() {
               </p>
 
               <button
-                className="clear-search-button"
+                type="button"
+                className={styles.clearSearchButton}
                 onClick={() => {
                   setSearchQuery("");
                   setSelectedCategory("All");
