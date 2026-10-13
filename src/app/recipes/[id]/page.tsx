@@ -13,6 +13,7 @@ import {
   isFavorite,
   toggleFavorite,
 } from "@/lib/favorites";
+import styles from "./page.module.css";
 
 type RecipePageProps = {
   params: Promise<{
@@ -62,38 +63,37 @@ export default function RecipePage({
 
   function handleFavorite() {
     const newFavoriteState = toggleFavorite(recipe.id);
-
     setFavorite(newFavoriteState);
   }
 
   return (
-    <main className="recipe-detail-page">
-      <Link href="/recipes" className="back-link">
+    <main className={styles.recipeDetailPage}>
+      <Link href="/recipes" className={styles.backLink}>
         ← Back to recipes
       </Link>
 
-      <section className="recipe-detail-hero">
-        <div className="recipe-detail-image-container">
+      <section className={styles.recipeDetailHero}>
+        <div className={styles.recipeDetailImageContainer}>
           <img
             src={recipe.image}
             alt={recipe.title}
-            className="recipe-detail-image"
+            className={styles.recipeDetailImage}
           />
         </div>
 
-        <div className="recipe-detail-info">
-          <div className="recipe-meta">
+        <div className={styles.recipeDetailInfo}>
+          <div className={styles.recipeMeta}>
             <span>{recipe.category}</span>
             <span>{recipe.cookTime}</span>
           </div>
 
           <h1>{recipe.title}</h1>
 
-          <p className="recipe-detail-description">
+          <p className={styles.recipeDetailDescription}>
             {recipe.description}
           </p>
 
-          <div className="recipe-stats">
+          <div className={styles.recipeStats}>
             <div>
               <strong>{recipe.cookTime}</strong>
               <span>Cook time</span>
@@ -106,8 +106,10 @@ export default function RecipePage({
           </div>
 
           <button
-            className="favorite-recipe-button"
+            type="button"
+            className={styles.favoriteRecipeButton}
             onClick={handleFavorite}
+            aria-pressed={favorite}
           >
             {favorite
               ? "♥ Remove from Favorites"
@@ -116,9 +118,9 @@ export default function RecipePage({
         </div>
       </section>
 
-      <section className="recipe-detail-content">
-        <div className="ingredients-section">
-          <div className="ingredients-header">
+      <section className={styles.recipeDetailContent}>
+        <div className={styles.ingredientsSection}>
+          <div className={styles.ingredientsHeader}>
             <div>
               <h2>Ingredients</h2>
 
@@ -131,7 +133,7 @@ export default function RecipePage({
             </div>
           </div>
 
-          <div className="ingredients-list">
+          <div className={styles.ingredientsList}>
             {recipe.ingredients.map((ingredient) => {
               const available = pantryReady
                 ? hasIngredient(ingredient.name)
@@ -140,11 +142,11 @@ export default function RecipePage({
               return (
                 <div
                   key={ingredient.name}
-                  className={
+                  className={`${styles.ingredientRow} ${
                     available
-                      ? "ingredient-row available"
-                      : "ingredient-row missing"
-                  }
+                      ? styles.available
+                      : styles.missing
+                  }`}
                 >
                   <span>{ingredient.amount}</span>
 
@@ -159,29 +161,31 @@ export default function RecipePage({
           </div>
 
           {missingIngredients.length > 0 && (
-            <button className="shopping-list-button">
+            <button
+              type="button"
+              className={styles.shoppingListButton}
+            >
               + Add Missing Ingredients to Shopping List
             </button>
           )}
 
           {missingIngredients.length === 0 && (
-            <div className="all-ingredients-message">
+            <div className={styles.allIngredientsMessage}>
               ✓ You have everything needed for this recipe.
             </div>
           )}
         </div>
 
-        <div className="directions-section">
+        <div className={styles.directionsSection}>
           <h2>Directions</h2>
 
-          <div className="directions-list">
+          <div className={styles.directionsList}>
             {recipe.directions.map((direction, index) => (
               <div
                 key={index}
-                className="direction-step"
+                className={styles.directionStep}
               >
                 <span>{index + 1}</span>
-
                 <p>{direction}</p>
               </div>
             ))}
