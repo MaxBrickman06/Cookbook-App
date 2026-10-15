@@ -545,8 +545,8 @@ function renderLinkPanel() {
         <div class="panel-head"><h3>Link</h3><span class="tag">needs the server</span></div>
         <p class="sub" style="margin:0">
           Importing from a link needs the app's small server, because a page opened straight from a file isn't allowed
-          to read other websites. In a terminal in this folder run <code>npm start</code>, then open
-          <code>http://localhost:3000</code>. Text import below works either way.
+          to read other websites. On Windows, double-click the Cookbook desktop icon (set it up with <code>Install Cookbook.cmd</code>). Otherwise run <code>npm start</code> in this folder and open
+          <code>http://localhost:3560</code>. Text import below works either way.
         </p>
       </section>`;
   }
@@ -1071,6 +1071,15 @@ document.addEventListener('drop', (e) => {
 
 render();
 handleSharedLink();
+
+// Tell the server this window is open, so the desktop launcher's server knows when to stop.
+if (SERVER_MODE && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  const ping = () => fetch('/api/ping', { cache: 'no-store' }).catch(() => {});
+  ping();
+  setInterval(ping, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });
+  window.addEventListener('pagehide', () => { try { navigator.sendBeacon('/api/bye'); } catch (e) { /* ignore */ } });
+}
 
 // Lets the app be installed to the home screen (and receive shared links on Android).
 if (SERVER_MODE && 'serviceWorker' in navigator) {

@@ -1,6 +1,9 @@
 /* Cookbook App — tiny local server (Node 18+, no dependencies)
  *
- *   npm start            → http://localhost:3000
+ *   npm start                   → http://localhost:3560
+ *   node server.js --open       → also opens the app in an app window (reuses a running copy)
+ *   COOKBOOK_AUTOSTOP=1         → shuts down a few minutes after the last app window closes
+ *                                 (used by the Windows desktop icon, see launcher/)
  *
  * Serves the app's files and one API route, /api/import?url=…, which fetches a recipe
  * page or social media video for the browser (browsers aren't allowed to read other
@@ -9,6 +12,7 @@
 'use strict';
 
 const http = require('http');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const dns = require('dns').promises;
@@ -16,7 +20,7 @@ const net = require('net');
 const { importFromUrl, ImportError } = require('./importer.js');
 
 const ROOT = __dirname;
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3560;   // 3560, like the course number — avoids other dev servers on 3000
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : 'localhost');
 
 const MAX_PAGE_BYTES = 4 * 1024 * 1024;
@@ -159,16 +163,95 @@ function serveFile(req, res, pathname) {
 
 const server = http.createServer((req, res) => {
   const { pathname, searchParams } = new URL(req.url, 'http://localhost');
-  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { ok: false, error: 'Method not allowed' });
-  if (pathname === '/api/health') return send(res, 200, { ok: true });
+  const beacon = req.method === 'POST' && pathname === '/api/bye';   // navigator.sendBeacon uses POST
+  if (req.method !== 'GET' && req.method !== 'HEAD' && !beacon) return send(res, 405, { ok: false, error: 'Method not allowed' });
+  if (pathname === '/api/health') return send(res, 200, { ok: true, app: 'cookbook' });
+  if (pathname === '/api/ping') { autostop.ping(); return send(res, 200, { ok: true }); }
+  if (pathname === '/api/bye') { autostop.bye(); return send(res, 200, { ok: true }); }
   if (pathname === '/api/import') return handleImport(req, res, searchParams);
   return serveFile(req, res, pathname);
 });
 
-if (require.main === module) {
-  server.listen(PORT, HOST, () => {
-    console.log(`Cookbook app running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+/* ---------------- auto-stop (desktop launcher) ---------------- */
+
+// Open app pages ping every 30 s. A closed window sends "bye". Background windows can be
+// throttled to one timer a minute, so the server waits a few minutes before giving up.
+const autostop = {
+  enabled: process.env.COOKBOOK_AUTOSTOP === '1',
+  idleMs: Number(process.env.COOKBOOK_IDLE_MS) || 3 * 60 * 1000,
+  deadline: Date.now() + (Number(process.env.COOKBOOK_START_MS) || 5 * 60 * 1000),  // time to open the first window
+  ping() { this.deadline = Date.now() + this.idleMs; },
+  bye() { this.deadline = Math.min(this.deadline, Date.now() + Math.min(20000, this.idleMs)); },  // a reload pings again
+  start() {
+    if (!this.enabled) return;
+    setInterval(() => {
+      if (Date.now() > this.deadline) {
+        console.log('No Cookbook window open — shutting down.');
+        process.exit(0);
+      }
+    }, Math.min(5000, this.idleMs / 2)).unref();
+  },
+};
+
+/* ---------------- opening the app window ---------------- */
+
+/** Open the app in Edge/Chrome "app mode" (its own window, no tabs), else the default browser. */
+function openApp(url) {
+  const tryRun = (cmd, args) => new Promise((resolve) => {
+    try {
+      const p = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+      p.on('error', () => resolve(false));
+      p.on('spawn', () => { p.unref(); resolve(true); });
+    } catch (e) { resolve(false); }
   });
+  const profile = path.join(process.env.LOCALAPPDATA || process.env.HOME || ROOT, process.platform === 'win32' ? 'Cookbook\\browser' : '.cookbook-browser');
+  const appArgs = [`--app=${url}`, `--user-data-dir=${profile}`, '--window-size=1200,900', '--no-first-run', '--no-default-browser-check'];
+  const pf = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
+  const candidates = process.platform === 'win32'
+    ? [...pf.map((d) => path.join(d, 'Microsoft\\Edge\\Application\\msedge.exe')), ...pf.map((d) => path.join(d, 'Google\\Chrome\\Application\\chrome.exe'))]
+    : process.platform === 'darwin'
+      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']
+      : ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'];
+  return (async () => {
+    for (const c of candidates) {
+      if (path.isAbsolute(c) && !fs.existsSync(c)) continue;
+      if (await tryRun(c, appArgs)) return;
+    }
+    if (process.platform === 'win32') await tryRun('cmd', ['/c', 'start', '', url]);
+    else await tryRun(process.platform === 'darwin' ? 'open' : 'xdg-open', [url]);
+  })();
 }
 
-module.exports = { server, isPrivateAddress, safeFetch };
+async function alreadyRunning(url) {
+  try {
+    const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) });
+    return (await res.json()).app === 'cookbook';
+  } catch (e) {
+    return false;
+  }
+}
+
+if (require.main === module) {
+  const open = process.argv.includes('--open');
+  const shownHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+  const url = `http://${shownHost}:${PORT}`;
+  (async () => {
+    if (open && await alreadyRunning(url)) {      // second click on the icon: just open a window
+      await openApp(url);
+      return;
+    }
+    server.on('error', (e) => {
+      console.error(e.code === 'EADDRINUSE'
+        ? `Port ${PORT} is already used by another program. Close it, or start with PORT=<number>.`
+        : e.message);
+      process.exit(1);
+    });
+    server.listen(PORT, HOST, () => {
+      console.log(`Cookbook app running at ${url}`);
+      autostop.start();
+      if (open) openApp(url);
+    });
+  })();
+}
+
+module.exports = { server, isPrivateAddress, safeFetch, autostop };

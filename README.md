@@ -5,13 +5,23 @@ CS3560 Project 2
 
 A plain HTML/CSS/JavaScript app with a tiny Node.js server. No frameworks, no build step, no dependencies to install.
 
-**Run it (full app, including link import):** install [Node.js](https://nodejs.org) 18 or newer, then in this folder:
+**Windows — one click:** double-click **`Install Cookbook.cmd`** once. It puts a **Cookbook** icon on your desktop
+(and in the Start menu) and opens the app. From then on, just double-click the icon:
+- the server starts in the background (no console window) and Cookbook opens in its own app window;
+- if Node.js isn't installed, the first launch downloads the official portable Node.js from nodejs.org
+  (~30 MB, one time), checks its SHA-256 fingerprint, and keeps it in `%LOCALAPPDATA%\Cookbook` — nothing is
+  installed system-wide;
+- closing the window stops the server a few minutes later; clicking the icon while it's running opens another window.
+
+If you move the project folder, run `Install Cookbook.cmd` again. To remove the icons: run
+`"Install Cookbook.cmd" /uninstall` from a terminal in the folder. Server logs are in `%LOCALAPPDATA%\Cookbook`.
+
+**Any computer with Node.js 18+:** in this folder run
 
 ```
-npm start
+npm run app      # starts the server and opens the app window
+npm start        # just the server — then open http://localhost:3560
 ```
-
-and open <http://localhost:3000>.
 
 **Quick look without Node:** open `index.html` directly in a browser. Everything works except importing from a link
 (browsers don't let a page read other websites, so that part goes through the server).
@@ -57,8 +67,8 @@ and open <http://localhost:3000>.
 
   Installing / sharing from a phone needs the app at an `https://` address (or `localhost` on the same device).
   To try it on your phone, host it somewhere free that runs Node (e.g. Render, Railway, Fly.io — start command
-  `npm start`; the server listens on `$PORT`), or tunnel your laptop with `npx localtunnel --port 3000` or
-  `cloudflared tunnel --url http://localhost:3000`.
+  `npm start`; the server listens on `$PORT`), or tunnel your laptop with `npx localtunnel --port 3560` or
+  `cloudflared tunnel --url http://localhost:3560`.
 
 #### Link import limits (worth knowing for the demo)
 - TikTok and Instagram don't offer an official "give me the caption" API for apps like this, so the app reads the
@@ -94,6 +104,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | `importer.js` | Reads a recipe from a link: recipe sites, TikTok, Instagram, YouTube |
 | `server.js` | Serves the app and the `/api/import` route; fetches links safely |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Make the app installable and able to receive shared links |
+| `Install Cookbook.cmd`, `launcher/` | Windows desktop icon: one-time setup and the launcher it runs |
 
 ### Planned (shown as placeholders)
 - Import from a photo of a cookbook page
