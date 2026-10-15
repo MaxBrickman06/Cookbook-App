@@ -1,0 +1,31 @@
+Cookbook-App - prompts given to Claude
+======================================
+Every prompt given to Claude for this project, word for word, oldest first.
+Times are US Eastern (America/New_York). New prompts are added to the bottom.
+(The first demo prompt, from 2026-10-01, is in Initial_Claude_Demo_Prompt_Max.txt on main.)
+
+----------------------------------------------------------------------
+[2026-10-15 09:29 EDT]  branch: updated-demo-2026-10-15
+Attached: Cookbook App Design.pdf (project file)
+
+i want you to go into the repo and make a new branch called updated demo with todays date. in that new branch, i want you to start to implement more of my initial features. first, i want you to be able to save recipes as favorites, which automatically puts them at the top if the list of recipes a user has. i want it to be a star button that lights up when a recipe is favorited, and is just an outline otherwise. i also want you to start working on the text scanning, see if you can take an article pasted from the internet and turn it into a fully correct and imported recipe  pick put each ingredient and save it to the ingredients list, and find the instructions and denote those too. each recipe also needs a directions tab, so add that too. just make it a text field in every recipe.
+
+----------------------------------------------------------------------
+[2026-10-15 10:41 EDT]  branch: updated-demo-2026-10-15
+
+Well done. Now I want each recipe to also contain an image field. in that same branch you were working in before, impliment the ability for users to add an image to a recipe to show what it may look like when finished. In the library, I also want a thumbnail of that image to show up below the recipe title. You can add the faborite button(the star) to the corner of that thumbnail as well, so the star shows on top of the dishes picture.
+
+----------------------------------------------------------------------
+[2026-10-15 10:48 EDT]  branch: updated-demo-2026-10-15
+
+Great. Is there any way for the text scanner to be given a browser link to an article? I want the user to be able to paste a link from their browser into the app, and have it scan it without the user having to paste the entire article page. I also want to see if you can impliment scraping of descriptions from tiktok videos, instagram reels, youtube videos and shorts to see if you can find a recipe in the videos description and also important that. I want the users to be able to share a link to one of the specified social media apps and have the app load the recipe from the video description
+
+----------------------------------------------------------------------
+[2026-10-15 11:03 EDT]  branch: updated-demo-2026-10-15
+
+is there any way you can have it all set up by running one file? I want to be able to click on a nice looking icon on my desktop that will automatically launch the full app with all functionality
+
+----------------------------------------------------------------------
+[2026-10-15 11:15 EDT]  branch: updated-demo-2026-10-15
+
+Can you save every prompt I have given you today into a text file and please include that in the repository. From this point on under this project, any prompt you are given, I want you to save into a text file, denoting the date and time of the prompt if able. Update this file every time a new prompt is given please
