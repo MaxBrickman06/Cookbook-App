@@ -158,3 +158,20 @@ test('bad links', async () => {
   await assert.rejects(importFromUrl('hello', fakeNet({})), /doesn't look like a link/);
   await assert.rejects(importFromUrl('https://blocked.example/x', fakeNet({})), /Couldn't open that page \(the site answered 404\)/);
 });
+
+test('real video description (from the design sketch screenshot) imports exactly', async () => {
+  // Transcribed from the "Cheesy Garlic Potato Bites Fried" video description in Cookbook App Design.pdf.
+  const description = page('real-video-description.txt');
+  const watch = `<script>var ytInitialPlayerResponse = ${JSON.stringify({ videoDetails: {
+    videoId: 'abcdefghijk', title: 'Cheesy Garlic Potato Bites Fried #recipe #easyrecipe #food', author: 'creator', shortDescription: description,
+  } })};</script>`;
+  const net = fakeNet({ 'https://www.youtube.com/watch?v=abcdefghijk': watch });
+  const { recipe } = await importFromUrl('https://youtube.com/shorts/abcdefghijk', net);
+  assert.equal(recipe.name, 'Cheesy Garlic Potato Bites Fried');
+  assert.deepEqual(recipe.ingredients, ['Potatoes', 'Butter', 'Parmesan cheese', 'Salt', 'Garlic powder', 'Parsley', 'Cornstarch', 'Egg', 'Mozzarella cheese', 'Oil']);
+  assert.equal(recipe.amounts['parmesan cheese'], '1/3 cup');
+  assert.equal(recipe.amounts.oil, 'for frying');
+  assert.equal(steps(recipe).length, 5);
+  assert.match(recipe.directions, /^1\. Peel and slice potatoes\. Boil until tender \(until a fork can easily pierce the surface\)\n2\. Mash/);
+  assert.match(recipe.directions, /5\. Deep fry in 350° oil until golden and crispy\.$/);
+});
