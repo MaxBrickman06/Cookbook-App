@@ -67,6 +67,7 @@ function upgradeRecipe(r) {
     favorite: Boolean(r.favorite),
     amounts: r.amounts || {},
     image: r.image || '',
+    source: r.source || '',
     ingredients: r.ingredients || [],
     useFridge: r.useFridge !== false,
   };
@@ -101,7 +102,12 @@ const ui = {
   recipeId: null,
   targetListId: null,
   focusKey: null,
+  link: { status: 'idle' },   // link import: idle | loading | error
+  importText: '',
 };
+
+/* Link import needs server.js; opened as a plain file it can't fetch other sites. */
+const SERVER_MODE = /^https?:$/.test(location.protocol);
 
 /* ---------------- domain logic ---------------- */
 
@@ -344,6 +350,7 @@ function renderRecipe() {
       <label class="field-label" for="recipe-name">Recipe name</label>
       <input type="text" id="recipe-name" class="title-input" data-bind="recipe-name"
              value="${esc(r.name)}" placeholder="Name this dish">
+      ${sourceLine(r)}
       <label class="field-label" for="recipe-desc">Description</label>
       <textarea id="recipe-desc" data-bind="recipe-desc" data-autosize
                 placeholder="What is it, how do you make it, any notes…">${esc(r.description)}</textarea>
@@ -496,6 +503,82 @@ function renderLists() {
       : '<div class="empty">No shopping lists yet.</div>'}`;
 }
 
+function sourceLine(r) {
+  if (!/^https?:\/\//.test(r.source)) return '';
+  let host = r.source;
+  try { host = new URL(r.source).hostname.replace(/^www\./, ''); } catch (e) { /* keep raw */ }
+  return `<p class="source">Imported from <a href="${esc(r.source)}" target="_blank" rel="noopener noreferrer">${esc(host)} ↗</a></p>`;
+}
+
+/** First web address inside shared text ("Check out this video! https://vm.tiktok.com/…"). */
+function extractUrl(text) {
+  const m = String(text || '').match(/https?:\/\/[^\s<>"']+/i);
+  return m ? m[0].replace(/[.,;:!?)\]]+$/, '') : '';
+}
+
+function platformOf(url) {
+  if (/tiktok\.com/i.test(url)) return 'TikTok';
+  if (/instagram\.com|instagr\.am/i.test(url)) return 'Instagram';
+  if (/youtube\.com|youtu\.be/i.test(url)) return 'YouTube';
+  return 'website';
+}
+
+function renderLinkPanel() {
+  const { status, message, caption, url } = ui.link;
+  const loading = status === 'loading';
+  const bookmarklet = `javascript:void(window.open('${location.origin}/?share-url='+encodeURIComponent(location.href)))`;
+
+  let statusBox = '';
+  if (loading) {
+    statusBox = `<div class="link-status loading" role="status"><span class="spinner" aria-hidden="true"></span>${esc(message)}</div>`;
+  } else if (status === 'error') {
+    statusBox = `
+      <div class="link-status error" role="alert">
+        <p>${esc(message)}</p>
+        ${caption ? '<button class="btn ghost small" data-action="caption-to-text">Edit the caption in Text import ↓</button>' : ''}
+      </div>`;
+  }
+
+  if (!SERVER_MODE) {
+    return `
+      <section class="panel">
+        <div class="panel-head"><h3>Link</h3><span class="tag">needs the server</span></div>
+        <p class="sub" style="margin:0">
+          Importing from a link needs the app's small server, because a page opened straight from a file isn't allowed
+          to read other websites. In a terminal in this folder run <code>npm start</code>, then open
+          <code>http://localhost:3000</code>. Text import below works either way.
+        </p>
+      </section>`;
+  }
+
+  return `
+    <section class="panel">
+      <div class="panel-head"><h3>Link</h3><span class="tag have">new</span></div>
+      <p class="sub" style="margin:0 0 12px">
+        Paste a link to a recipe website, a TikTok, an Instagram post or Reel, or a YouTube video or Short.
+        The app reads the recipe (or the video's caption/description) and imports it.
+      </p>
+      <form class="inline-form" data-form="import-link">
+        <input type="text" name="url" inputmode="url" autocomplete="off" data-focus="link"
+               value="${esc(loading || status === 'error' ? url || '' : '')}"
+               placeholder="https://www.tiktok.com/@chef/video/…" ${loading ? 'disabled' : ''}>
+        <button class="btn" ${loading ? 'disabled' : ''}>${loading ? 'Reading…' : 'Import'}</button>
+      </form>
+      <div class="platforms"><span class="tag">Recipe sites</span><span class="tag">TikTok</span><span class="tag">Instagram</span><span class="tag">YouTube &amp; Shorts</span></div>
+      ${statusBox}
+      <details class="desc share-help">
+        <summary>Share straight from TikTok, Instagram or YouTube</summary>
+        <div class="share-body">
+          <p><strong>Android:</strong> open this app in Chrome and choose <em>Add to Home screen</em> (or <em>Install app</em>).
+             Cookbook then shows up in the Share menu — tap <em>Share → Cookbook</em> on any video and it imports automatically.</p>
+          <p><strong>iPhone:</strong> iOS doesn't let web apps join the Share menu yet. Tap <em>Share → Copy link</em>, then paste it above.</p>
+          <p><strong>Computer:</strong> drag this button to your bookmarks bar, then click it on any recipe or video page:
+             <a class="bookmarklet" href="${esc(bookmarklet)}" data-action="bookmarklet-hint">+ Cookbook</a></p>
+        </div>
+      </details>
+    </section>`;
+}
+
 function renderImport() {
   return `
     <div class="view-head">
@@ -505,26 +588,17 @@ function renderImport() {
       </div>
     </div>
 
-    <div class="import-grid">
-      <section class="panel soon">
-        <h3>Photo <span class="tag">planned</span></h3>
-        <p class="sub">Scan a cookbook page and pull out the recipe text.</p>
-      </section>
-      <section class="panel soon">
-        <h3>Link <span class="tag">planned</span></h3>
-        <p class="sub">Paste a social media post or video link and find the recipe in it.</p>
-      </section>
-    </div>
+    ${renderLinkPanel()}
 
     <section class="panel">
       <div class="panel-head"><h3>Text</h3><span class="tag have">works in demo</span></div>
       <p class="sub" style="margin:0 0 12px">
-        Copy a whole recipe page from the internet (Ctrl+A, Ctrl+C) and paste it here. The scanner skips the
-        story, ads and buttons, finds the recipe name, every ingredient with its amount, and the step-by-step
+        Copy a whole recipe page or a video caption and paste it here. The scanner skips the story, ads,
+        hashtags and buttons, finds the recipe name, every ingredient with its amount, and the step-by-step
         directions. Check the result on the next screen — everything stays editable. Rule-based, no AI.
       </p>
       <form data-form="import-text">
-        <textarea name="text" rows="12" placeholder="Paste a recipe article here…
+        <textarea name="text" rows="12" data-bind="import-text" data-focus="import-text" placeholder="Paste a recipe article or caption here…
 
 Garlic Butter Noodles
 Quick weeknight dinner.
@@ -537,9 +611,14 @@ Parmesan cheese, for serving
 
 Instructions
 1. Boil the pasta.
-2. Melt the butter with the garlic, toss with the pasta and top with parmesan."></textarea>
+2. Melt the butter with the garlic, toss with the pasta and top with parmesan.">${esc(ui.importText)}</textarea>
         <div style="margin-top:10px"><button class="btn">Scan text</button></div>
       </form>
+    </section>
+
+    <section class="panel soon">
+      <h3>Photo <span class="tag">planned</span></h3>
+      <p class="sub">Scan a cookbook page and pull out the recipe text.</p>
     </section>`;
 }
 
@@ -604,6 +683,85 @@ async function addPhotoFile(file) {
   }
 }
 
+/* ---------------- link import ---------------- */
+
+async function importLink(rawUrl) {
+  const url = extractUrl(rawUrl) || (/^[\w-]+(\.[\w-]+)+\//.test(rawUrl.trim()) ? `https://${rawUrl.trim()}` : '');
+  if (!url) {
+    ui.link = { status: 'error', message: 'Paste a full link, starting with https://', url: rawUrl };
+    render();
+    return;
+  }
+  const where = platformOf(url);
+  ui.link = {
+    status: 'loading',
+    url,
+    message: where === 'website' ? 'Reading the recipe page…' : `Reading the ${where} ${where === 'YouTube' ? 'description' : 'caption'}…`,
+  };
+  if (ui.view === 'import') render();
+
+  let data;
+  try {
+    const res = await fetch(`/api/import?url=${encodeURIComponent(url)}`);
+    data = await res.json();
+  } catch (e) {
+    data = { ok: false, error: 'Couldn\'t reach the Cookbook server. Is it still running (npm start)?' };
+  }
+  if (!data.ok) {
+    ui.link = { status: 'error', url, message: data.error, caption: data.caption || '' };
+    ui.view = 'import';
+    render();
+    return;
+  }
+
+  const recipe = upgradeRecipe({ id: uid(), ...data.recipe, image: '', favorite: false, useFridge: true });
+  state.recipes.push(recipe);
+  if (!save()) {
+    state.recipes.pop();
+    ui.link = { status: 'error', url, message: 'Browser storage is full — delete a recipe or a photo and try again.' };
+    render();
+    return;
+  }
+
+  // The server sends the dish photo along; shrink it like any other photo before saving.
+  if (data.recipe.image) {
+    let photo = '';
+    try {
+      const blob = await (await fetch(data.recipe.image)).blob();
+      photo = await photoToDataUrl(blob);
+    } catch (e) {
+      photo = /^https:\/\//.test(data.recipe.image) ? data.recipe.image : '';
+    }
+    if (photo) {
+      recipe.image = photo;
+      if (!save()) { recipe.image = ''; save(); }
+    }
+  }
+
+  ui.link = { status: 'idle' };
+  ui.recipeId = recipe.id;
+  go('recipe');
+  const steps = recipe.directions.split('\n').filter((l) => /^\d+\. /.test(l)).length;
+  toast(`Imported “${recipe.name}” from ${where === 'website' ? 'the web' : where} · ${plural(recipe.ingredients.length, 'ingredient')} · ${plural(steps, 'step')}`);
+}
+
+/** Links shared into the installed app (Android Share menu) or sent by the bookmarklet. */
+function handleSharedLink() {
+  const q = new URLSearchParams(location.search);
+  if (!['share-url', 'share-text', 'share-title'].some((k) => q.has(k))) return;
+  const shared = ['share-url', 'share-text', 'share-title'].map((k) => q.get(k) || '').join(' ');
+  history.replaceState(null, '', location.pathname);
+  ui.view = 'import';
+  const url = extractUrl(shared);
+  if (url && SERVER_MODE) {
+    importLink(url);
+  } else {
+    ui.importText = shared.trim();
+    render();
+    toast('Shared text added to Text import — tap Scan text');
+  }
+}
+
 /* ---------------- toast ---------------- */
 
 let toastTimer;
@@ -652,6 +810,18 @@ document.addEventListener('click', (e) => {
         const zone = app.querySelector('.dropzone');
         if (zone) { zone.scrollIntoView({ block: 'center' }); zone.classList.add('pulse'); }
       }
+      break;
+
+    case 'caption-to-text':
+      ui.importText = ui.link.caption || '';
+      ui.link = { status: 'idle' };
+      ui.focusKey = 'import-text';
+      render();
+      break;
+
+    case 'bookmarklet-hint':
+      e.preventDefault();
+      toast('Drag this button to your bookmarks bar instead of clicking it');
       break;
 
     case 'image-remove':
@@ -794,6 +964,7 @@ document.addEventListener('input', (e) => {
   if (bind === 'recipe-name' && recipe) recipe.name = el.value;
   else if (bind === 'recipe-desc' && recipe) recipe.description = el.value;
   else if (bind === 'recipe-directions' && recipe) recipe.directions = el.value;
+  else if (bind === 'import-text') { ui.importText = el.value; return; }
   else if (bind === 'list-name') findList(el.dataset.list).name = el.value;
   save();
 });
@@ -846,6 +1017,10 @@ document.addEventListener('submit', (e) => {
       break;
     }
 
+    case 'import-link':
+      importLink(value);
+      return;
+
     case 'image-url': {
       const url = value.trim();
       const recipe = findRecipe(ui.recipeId);
@@ -859,6 +1034,7 @@ document.addEventListener('submit', (e) => {
       if (!recipe) { toast('Paste some recipe text first'); return; }
       state.recipes.push(recipe);
       save();
+      ui.importText = '';
       ui.recipeId = recipe.id;
       go('recipe');
       const steps = recipe.directions.split('\n').filter((l) => /^\d+\. /.test(l)).length;
@@ -894,3 +1070,9 @@ document.addEventListener('drop', (e) => {
 });
 
 render();
+handleSharedLink();
+
+// Lets the app be installed to the home screen (and receive shared links on Android).
+if (SERVER_MODE && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => { /* optional */ });
+}

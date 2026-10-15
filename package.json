@@ -1,0 +1,13 @@
+{
+  "name": "cookbook-app",
+  "version": "0.3.0",
+  "private": true,
+  "description": "CS3560 Project 2 — recipe library, fridge tracker, shopping lists, and recipe import from links and social media.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

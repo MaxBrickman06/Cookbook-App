@@ -3,9 +3,18 @@ CS3560 Project 2
 
 ## Demo (browser)
 
-A plain HTML/CSS/JavaScript demo of the app's core ideas. No build step, no server, no dependencies.
+A plain HTML/CSS/JavaScript app with a tiny Node.js server. No frameworks, no build step, no dependencies to install.
 
-**Run it:** download or clone this branch and open `index.html` in any browser.
+**Run it (full app, including link import):** install [Node.js](https://nodejs.org) 18 or newer, then in this folder:
+
+```
+npm start
+```
+
+and open <http://localhost:3000>.
+
+**Quick look without Node:** open `index.html` directly in a browser. Everything works except importing from a link
+(browsers don't let a page read other websites, so that part goes through the server).
 
 ### What works
 - **Library** — create as many recipes as you want, rename them, write a description, and add ingredients.
@@ -31,18 +40,63 @@ A plain HTML/CSS/JavaScript demo of the app's core ideas. No build step, no serv
 
   It's rule-based (no AI), so always glance over the result — everything stays editable.
 
+- **Import → Link** — paste a link and the recipe is imported automatically, photo included:
+  - **Recipe websites:** most recipe sites include hidden, structured recipe data for Google; the app reads that
+    first (exact ingredients, steps, times, servings, photo). Otherwise it reads the page text with the scanner.
+  - **TikTok:** the video caption, read through TikTok's public embed service (oEmbed). Short `vm.tiktok.com` links work.
+  - **Instagram posts & Reels:** the caption, read from Instagram's public embed page.
+  - **YouTube videos & Shorts:** the video description. If the description only links to the full recipe on a
+    website ("Full recipe: https://…"), the app follows that link and imports the recipe from the site.
+  - If a caption has no recipe written in it, the app says so and offers to move the caption into Text import to edit.
+- **Share to the app:**
+  - **Android:** open the app in Chrome → menu → *Add to Home screen / Install app*. "Cookbook" then appears in the
+    Share menu of TikTok, Instagram, YouTube and Chrome — sharing a video imports its recipe.
+  - **iPhone:** iOS doesn't let web apps appear in the Share menu, so use *Share → Copy link* and paste it.
+  - **Computer:** drag the **+ Cookbook** button (Import → Link → "Share straight from…") to the bookmarks bar and
+    click it on any recipe or video page.
+
+  Installing / sharing from a phone needs the app at an `https://` address (or `localhost` on the same device).
+  To try it on your phone, host it somewhere free that runs Node (e.g. Render, Railway, Fly.io — start command
+  `npm start`; the server listens on `$PORT`), or tunnel your laptop with `npx localtunnel --port 3000` or
+  `cloudflared tunnel --url http://localhost:3000`.
+
+#### Link import limits (worth knowing for the demo)
+- TikTok and Instagram don't offer an official "give me the caption" API for apps like this, so the app reads the
+  same public data their embeds and link previews use (YouTube too, unless you add an API key — see below). If a
+  platform changes its pages, that platform can stop working until the code is updated.
+- **Instagram is the least reliable:** it often hides captions from apps, and private accounts can't be read.
+  When that happens the app tells you to copy the caption and use Text import.
+- Private, age-restricted or deleted videos can't be read. Some recipe sites block automated requests.
+- **YouTube (optional, more reliable):** create a free YouTube Data API key in Google Cloud Console and start the
+  server with `YOUTUBE_API_KEY=your_key npm start` — the app then uses YouTube's official API for descriptions.
+- Recipes found in a caption are only as good as the caption: if the creator lists ingredients without amounts,
+  the app can't invent them. Everything stays editable after import.
+- The server only fetches public `http(s)` addresses (no `localhost` / private network addresses), follows at most
+  5 redirects, gives up after 12 seconds and refuses pages over 4 MB.
+
 ### Tests
-The text scanner is tested against sample pasted articles in `tests/articles/` (food blog, Allrecipes-style
-"Step 1" pages, grouped ingredients, no headings, and a hand-typed recipe). Requires Node 18+.
+No internet needed — websites, TikTok, Instagram and YouTube responses are faked from files in `tests/pages/`.
 
 ```
-node --test tests/parser.test.js   # run the checks
-node tests/run.js                  # print what the scanner pulls out of each sample
+npm test             # scanner, link import and server safety checks
+node tests/run.js    # print what the scanner pulls out of each sample article
 ```
+
+- `tests/parser.test.js` — pasted articles in `tests/articles/` (food blog, "Step 1" pages, grouped ingredients, no headings)
+- `tests/importer.test.js` — recipe-site data, YouTube descriptions, TikTok/Instagram captions, links to full recipes
+- `tests/server.test.js` — refuses private network addresses; only serves the app's own files
+
+### Files
+| File | What it does |
+| --- | --- |
+| `index.html`, `styles.css`, `app.js` | The app (library, recipe page, fridge, lists, import) |
+| `parser.js` | Rule-based recipe scanner for pasted text and captions (runs in the browser and on the server) |
+| `importer.js` | Reads a recipe from a link: recipe sites, TikTok, Instagram, YouTube |
+| `server.js` | Serves the app and the `/api/import` route; fetches links safely |
+| `manifest.webmanifest`, `sw.js`, `icons/` | Make the app installable and able to receive shared links |
 
 ### Planned (shown as placeholders)
 - Import from a photo of a cookbook page
-- Import from a social media link
 - Scan a photo of your fridge to update ingredients
 
 Data is saved in your browser's localStorage (about 5 MB — roughly 30–60 recipe photos). If it fills up,

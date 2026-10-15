@@ -417,7 +417,25 @@ textarea.directions { min-height: 180px; line-height: 1.6; }
 .import-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); margin-bottom: 16px; }
 .import-grid .panel { margin: 0; }
 .soon { opacity: .6; }
+.panel.soon h3 .tag { margin-left: 6px; }
 .soon .tag { margin-left: 6px; }
+
+/* ---------- link import ---------- */
+.platforms { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
+.link-status { border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.link-status p { margin: 0 0 8px; }
+.link-status p:last-child { margin: 0; }
+.link-status.loading { display: flex; align-items: center; gap: 10px; background: rgba(106,168,255,.08); border: 1px solid rgba(106,168,255,.3); color: var(--blue); }
+.link-status.error { background: var(--red-bg); border: 1px solid rgba(255,107,107,.3); color: var(--text); }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(106,168,255,.3); border-top-color: var(--blue); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.share-body { padding: 4px 12px 10px; font-size: 14px; }
+details.desc .share-body p { margin: 8px 0; padding: 0; white-space: normal; font-size: 14px; }
+.bookmarklet { display: inline-block; margin-left: 6px; padding: 2px 10px; border-radius: 999px; background: var(--pink); color: #1a1014; font-weight: 600; text-decoration: none; cursor: grab; }
+code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; font-size: 13px; }
+.source { margin: -6px 0 14px; font-size: 13px; color: var(--muted); }
+.source a { color: var(--blue); text-decoration: none; }
+.source a:hover { text-decoration: underline; }
 
 /* ---------- toast ---------- */
 .toast {

@@ -53,7 +53,7 @@
 
   /* ---------------- line classification ---------------- */
 
-  const ING_HEAD = /^(ingredients?( list)?|ingredients? for( the)? .{1,30}|what you'?ll need|you'?ll need|what you need)$/;
+  const ING_HEAD = /^(ingredients?( list)?|ingredients? for( the)? .{1,30}|what you'?ll need|you'?ll need|what you need|you need|you will need|shopping list)$/;
   const STEP_HEAD = /^(instructions?|directions?|method|steps?|preparation|prep|cooking instructions|cooking directions|to make|how to make( it| this| them)?( .{0,30})?)$/;
   const STOP_HEAD = /^(notes?|recipe notes?|cook'?s notes?|chef'?s notes?|tips?( and tricks)?|recipe tips|expert tips|nutrition( information| facts| info)?|equipment|recommended equipment|video|recipe video|did you make this( recipe)?|tried this recipe|comments?|leave a (comment|reply|review)|reviews?|ratings?|related( recipes| posts)?|more recipes|you may also like|you might also like|storage|how to store( it)?|storing|make ahead|freezing|faqs?|frequently asked questions|reader interactions|share this( recipe)?|about the author|newsletter|serving suggestions)$/;
   const STOP_PREFIX = /^(nutrition|calories\s*:|course\s*:|cuisine\s*:|keywords?\s*:|author\s*:|did you make|tried this|leave a (comment|reply)|rate this|reader interactions|share on|\d+\s+comments?\b|serving\s*:\s*\d|serving size\s*:)/i;
@@ -117,8 +117,11 @@
   const hasUnitWord = (line) =>
     new RegExp(`\\b${NUM}\\s*(?:${UNITS.slice(0, 40).join('|')})\\b`, 'i').test(asciiFractions(line));
 
+  const COOKING_VERB = /^(?:then |next |now |first |finally )?(?:add|bake|beat|blend|boil|bring|broil|brown|chill|chop|combine|cook|cover|drain|drizzle|fold|fry|garnish|grill|heat|knead|layer|let|line|marinate|mash|melt|microwave|mix|place|pour|preheat|reduce|remove|rest|roast|roll|saute|sauté|scoop|season|serve|simmer|slice|spread|sprinkle|stir|strain|toast|top|toss|transfer|whisk|wrap)\b/i;
+
   function ingredientScore(line) {
     if (words(line).length > 22) return -1;          // prose, not an ingredient
+    if (!startsWithAmount(line) && COOKING_VERB.test(line) && words(line).length >= 3) return -1;  // a step
     if (startsWithAmount(line)) return 1;
     if (hasUnitWord(line)) return 0.8;
     if (/\bto taste\b|\bfor (serving|garnish|frying|greasing)\b|\boptional\b/i.test(line)) return 0.8;
@@ -146,7 +149,7 @@
    * Returns an array because "salt and pepper" is two ingredients.
    */
   function parseIngredientLine(raw) {
-    let s = asciiFractions(cleanLine(raw)).replace(/\*+$/, '').trim();
+    let s = asciiFractions(cleanLine(raw)).replace(/\*+$/, '').replace(/(?<!\b(?:oz|lb|lbs|tsp|tbsp|pkg|pt|qt|fl|in))\.+$/i, '').replace(/[!]+$/, '').trim();
     if (!s) return [];
 
     const amountParts = [];
@@ -308,8 +311,10 @@
       const strong = kept.filter((it) => startsWithAmount(it.line)).length;
       if (!kept.length) return;
       // Later blocks win ties: the printable recipe card sits below the story.
+      // The block ends after its last ingredient, so steps written right below (no heading) are found.
+      const blockEnd = Math.min(end, kept[kept.length - 1].index + 1);
       if (!best || score + strong >= best.score + best.strong) {
-        best = { start: i, end, items: kept, score, strong };
+        best = { start: i, end: blockEnd, items: kept, score, strong };
       }
     });
     if (best) return best;
@@ -318,15 +323,21 @@
     let run = [];
     let bestRun = [];
     lines.forEach((line, i) => {
-      const fits = words(line).length <= 18 && !/[.!?]$/.test(line);
+      const fits = words(line).length <= 18 && !/[.!?]$/.test(line) && !(i === 0 && looksLikeTitle(line));
       if (fits && (startsWithAmount(line) || (run.length && ingredientScore(line) >= 0.3))) run.push({ line, index: i });
       else if (!isJunk(line)) { if (run.length > bestRun.length) bestRun = run; run = []; }
     });
     if (run.length > bestRun.length) bestRun = run;
-    if (bestRun.length >= 2) {
+    if (bestRun.filter((x) => startsWithAmount(x.line)).length >= 2) {
       return { start: bestRun[0].index, end: bestRun[bestRun.length - 1].index + 1, items: bestRun, score: bestRun.length, strong: bestRun.length };
     }
     return null;
+  }
+
+  /** "10 Minute Garlic Noodles" — Title Case, so a name rather than "10 minutes" of something. */
+  function looksLikeTitle(line) {
+    const ws = words(line).filter((w) => /\p{L}/u.test(w));
+    return ws.length >= 2 && ws.filter((w) => /^\p{Lu}/u.test(w)).length >= Math.ceil(ws.length * 0.75) && !hasUnitWord(line);
   }
 
   const isSubheading = (line) =>
@@ -402,6 +413,12 @@
       pendingNumberOnly = false;
     });
 
+    // A caption often gives the method as one paragraph — make each sentence a step.
+    if (steps.length === 1 && steps[0].text) {
+      const sentences = steps[0].text.split(/(?<=[.!?])\s+(?=[A-Z])/);
+      if (sentences.length >= 3) steps.splice(0, 1, ...sentences.map((text) => ({ text: text.trim() })));
+    }
+
     // Drop headings that ended up with no steps under them.
     const cleaned = steps.filter((s, i) => s.text || (steps[i + 1] && steps[i + 1].text));
     let n = 0;
@@ -419,7 +436,8 @@
     if (line.length > 90 || words(line).length > 14) return false;
     if (/[.!?,;]$/.test(line) && !/\.\.\.$/.test(line)) return false;
     if (/^(by|from|updated|published|posted|written|jump|this post|serves|servings|yield|prep|cook|total)\b/i.test(line)) return false;
-    if (/^\d/.test(line) || /https?:\/\//i.test(line) || /@/.test(line)) return false;
+    if (/^\d/.test(line) && (hasUnitWord(line) || /^[\d.,k]+\s*(likes|comments|reviews|ratings|votes|views|servings|min|mins|minutes|hours?)\b/i.test(line))) return false;
+    if (/https?:\/\//i.test(line) || /@/.test(line)) return false;
     if (/\b(19|20)\d{2}\b/.test(line) && /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(line)) return false;
     return /[a-z]/i.test(line);
   }
@@ -427,6 +445,7 @@
   function tidyTitle(t) {
     let s = t.replace(/^#+\s*/, '').replace(/\s+[|–—-]\s+[^|–—-]{2,40}$/, '').trim();
     s = s.replace(/\s+recipe$/i, '').trim() || s;
+    if (/[A-Z]{3}/.test(s) && !/[a-z]/.test(s)) s = s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
     s = s.replace(/^(the )?(best|easy|easiest|perfect|ultimate) /i, (m) => m); // keep their wording
     return s;
   }
@@ -474,9 +493,61 @@
     return [];
   }
 
+  /* ---------------- social media captions ---------------- */
+
+  const EMOJI_RUN = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\u200D|\p{Emoji_Modifier}|\p{Extended_Pictographic}|\p{Regional_Indicator})*/gu;
+  const INLINE_HEAD = /(^|[\s.!:;,|•])((?:ingredients?|what you(?:'|’)?ll need|you(?:'|’)?ll need|instructions?|directions?|method|steps?|how to make(?: it| them)?)\s*(?::|：|-|–|—)(?:\s|$))/gi;
+
+  /** Split one caption line on commas when it is really a list of ingredients. */
+  function splitInlineList(line) {
+    // "200g pasta, 2 tsp pepper. Cook the pasta, …" — the list ends where the sentence does.
+    const sentences = line.split(/(?<=[.!?])\s+(?=\p{Lu})/u);
+    if (sentences.length > 1 && startsWithAmount(sentences[0])) {
+      const head = splitInlineList(sentences[0]);
+      if (head.length > 1) return [...head, ...sentences.slice(1)];
+    }
+    const parts = line.split(/\s*(?:,|;|\s\|\s|\s\/\s)\s*/).map((p) => p.replace(/^(?:and|&|\+)\s+/i, '').trim()).filter(Boolean);
+    if (parts.length < 2 || !startsWithAmount(parts[0]) || /^(?:step\s*)?\d{1,2}[.)]\s/i.test(line)) return [line];
+    if (parts.some((p) => words(p).length > 10)) return [line];   // that's a sentence, not a list
+    if (parts.filter(startsWithAmount).length < 2) return [line];
+    const out = [];
+    parts.forEach((p) => {
+      // "1 onion, diced" — a part without an amount belongs to the previous ingredient.
+      if (out.length && !startsWithAmount(p) && /^(?:diced|minced|chopped|sliced|grated|melted|softened|divided|optional|to taste|peeled|beaten|cubed|shredded|crushed|room temp|at room temperature|finely|roughly|thinly)\b/i.test(p)) {
+        out[out.length - 1] += `, ${p}`;
+      } else out.push(p);
+    });
+    return out;
+  }
+
+  /**
+   * Make a TikTok / Reels / YouTube caption look like a normal recipe:
+   * hashtags and emoji removed, inline "Ingredients:" headings and "1. 2. 3." steps
+   * put on their own lines, "4 potatoes, 1 cup cheese, …" split into one per line.
+   * Plain articles pass through almost unchanged.
+   */
+  function expandInline(text) {
+    let t = String(text || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/(^|\s)#[\p{L}\p{N}_]+/gu, '$1')          // hashtags
+      .replace(EMOJI_RUN, '\n')                            // emoji are used as bullets
+      .replace(/[ \t]+\n/g, '\n');
+
+    t = t.split('\n').map((line) => {
+      let l = line.replace(INLINE_HEAD, (m, pre, head) => `${pre}\n${head.replace(/\s*(?::|：|-|–|—)\s*$/, '')}:\n`);
+      // Inline numbered steps: "1. Boil the potatoes 2. Mash them 3. Fry"
+      if ((l.match(/(?:^|\s)(?:step\s*)?\d{1,2}[.)]\s+(?=\p{L})/giu) || []).length >= 2) {
+        l = l.replace(/\s+((?:step\s*)?\d{1,2}[.)]\s+(?=\p{L}))/giu, '\n$1');
+      }
+      return l;
+    }).join('\n');
+
+    return t.split('\n').flatMap((line) => splitInlineList(line.trim())).join('\n');
+  }
+
   /** Main entry point. Returns null when the text is empty. */
   function parseRecipe(text) {
-    const lines = String(text || '').split(/\r?\n/).map(cleanLine).filter((l) => l && !/^[\s\W]*$/.test(l));
+    const lines = expandInline(text).split(/\n/).map(cleanLine).filter((l) => l && /[\p{L}\p{N}]/u.test(l));
     if (!lines.length) return null;
 
     const block = findIngredientBlock(lines);
@@ -498,7 +569,7 @@
     return { name, description, ingredients, amounts, directions };
   }
 
-  const api = { parseRecipe, parseIngredientLine };
+  const api = { parseRecipe, parseIngredientLine, expandInline };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RecipeParser = api;
 })(typeof window !== 'undefined' ? window : globalThis);
