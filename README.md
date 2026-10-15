@@ -10,9 +10,13 @@ A plain HTML/CSS/JavaScript demo of the app's core ideas. No build step, no serv
 ### What works
 - **Library** — create as many recipes as you want, rename them, write a description, and add ingredients.
   Each card has a collapsible description, collapsible directions, and its ingredient list.
-- **Favorites** — tap the star on any recipe (in the library or inside the recipe). Favorited recipes get a
+- **Favorites** — tap the star on any recipe (on its library thumbnail or inside the recipe). Favorited recipes get a
   filled gold star and are pinned to the top of the library; unfavorited ones show an outline star.
 - **Directions** — every recipe has its own Directions text field for the step-by-step method.
+- **Photos** — add a picture of the finished dish to any recipe: choose a file, drag an image onto the photo
+  area, or paste an image link. Uploaded photos are shrunk to 1000px JPEGs (~50–150 KB) so they fit in browser
+  storage. In the library each card shows the photo as a thumbnail under the title, with the favorite star
+  sitting on its corner. Recipes without a photo show an empty frame — click it to add one.
 - **Fridge** — keep track of what you have at home. Shows which recipes you can make right now.
 - **Lists** — create multiple named shopping lists, check items off, and move bought items into the fridge.
 - **Fridge check** — in each recipe, ingredients you don't have are highlighted red and moved to the top.
@@ -41,4 +45,5 @@ node tests/run.js                  # print what the scanner pulls out of each sa
 - Import from a social media link
 - Scan a photo of your fridge to update ingredients
 
-Data is saved in your browser's localStorage. Use **Reset demo data** in the footer to restore the sample recipes.
+Data is saved in your browser's localStorage (about 5 MB — roughly 30–60 recipe photos). If it fills up,
+the app tells you instead of silently dropping the photo. Use **Reset demo data** in the footer to restore the sample recipes.

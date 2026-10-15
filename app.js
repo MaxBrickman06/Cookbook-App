@@ -66,6 +66,7 @@ function upgradeRecipe(r) {
     directions: r.directions || '',
     favorite: Boolean(r.favorite),
     amounts: r.amounts || {},
+    image: r.image || '',
     ingredients: r.ingredients || [],
     useFridge: r.useFridge !== false,
   };
@@ -84,8 +85,14 @@ function loadState() {
 
 let state = loadState();
 
+/** Returns false when the browser refuses to store the data (usually: storage full of photos). */
 function save() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /* UI-only state (not saved) */
@@ -110,6 +117,29 @@ const sortedRecipes = () => [
 ];
 
 const STAR_PATH = 'M12 2.8l2.82 5.72 6.31.92-4.57 4.45 1.08 6.29L12 17.21l-5.64 2.97 1.08-6.29L2.87 9.44l6.31-.92z';
+const PHOTO_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true" class="photo-icon">
+    <rect x="3" y="5" width="18" height="14" rx="2.5"/>
+    <circle cx="9" cy="10" r="1.8"/>
+    <path d="M4 17l5-4.5 3.5 3 3-2.5L20 17"/>
+  </svg>`;
+
+/** Library thumbnail: the dish photo (or an empty frame) with the favorite star in the corner. */
+function recipeThumb(r) {
+  const label = esc(r.name || 'Untitled recipe');
+  const body = r.image
+    ? `<button class="thumb-open" data-action="open-recipe" data-id="${r.id}" aria-label="Open ${label}">
+         <img src="${esc(r.image)}" alt="${label}" loading="lazy"
+              onerror="this.closest('.thumb').classList.add('broken')">
+         <span class="thumb-broken">${PHOTO_ICON}Image couldn't load</span>
+       </button>`
+    : `<button class="thumb-open thumb-empty" data-action="open-recipe" data-id="${r.id}" data-then="photo"
+               aria-label="Add a photo to ${label}">
+         ${PHOTO_ICON}<span>Add a photo</span>
+       </button>`;
+  return `<div class="thumb ${r.image ? '' : 'empty'}">${body}${starButton(r, 'overlay')}</div>`;
+}
+
 function starButton(r, size = 'small') {
   const on = r.favorite;
   const label = on ? `Remove ${r.name || 'recipe'} from favorites` : `Add ${r.name || 'recipe'} to favorites`;
@@ -218,10 +248,10 @@ function renderLibrary() {
     return `
       <article class="recipe-card ${r.favorite ? 'fav' : ''}">
         <div class="card-top">
-          ${starButton(r)}
           <h3>${esc(r.name || 'Untitled recipe')}</h3>
           <button class="btn ghost small" data-action="open-recipe" data-id="${r.id}">Open</button>
         </div>
+        ${recipeThumb(r)}
         <div class="card-meta">${status}<span class="tag">${plural(r.ingredients.length, 'ingredient')}</span></div>
         <details class="desc">
           <summary>Description</summary>
@@ -308,6 +338,8 @@ function renderRecipe() {
       </span>
     </div>
 
+    ${renderPhotoPanel(r)}
+
     <section class="panel">
       <label class="field-label" for="recipe-name">Recipe name</label>
       <input type="text" id="recipe-name" class="title-input" data-bind="recipe-name"
@@ -339,6 +371,42 @@ function renderRecipe() {
       <textarea id="recipe-directions" class="directions" data-bind="recipe-directions" data-autosize
                 aria-label="Directions"
                 placeholder="1. Preheat the oven…&#10;2. Mix the dry ingredients…">${esc(r.directions)}</textarea>
+    </section>`;
+}
+
+function renderPhotoPanel(r) {
+  if (r.image) {
+    return `
+      <section class="panel photo-panel">
+        <div class="panel-head">
+          <h3>Photo</h3>
+          <span class="row-actions">
+            <label class="btn ghost small file-btn">Change photo
+              <input type="file" accept="image/*" data-action="image-file" hidden>
+            </label>
+            <button class="btn ghost small danger" data-action="image-remove">Remove</button>
+          </span>
+        </div>
+        <div class="photo-frame" data-dropzone>
+          <img src="${esc(r.image)}" alt="${esc(r.name || 'Recipe')} — finished dish"
+               onerror="this.closest('.photo-frame').classList.add('broken')">
+          <span class="thumb-broken">${PHOTO_ICON}That image link couldn't load. Try another one.</span>
+        </div>
+      </section>`;
+  }
+  return `
+    <section class="panel photo-panel">
+      <div class="panel-head"><h3>Photo</h3><span class="sub">Show what the finished dish looks like</span></div>
+      <label class="dropzone" data-dropzone data-focus="photo">
+        <input type="file" accept="image/*" data-action="image-file" hidden>
+        ${PHOTO_ICON}
+        <strong>Choose a photo</strong>
+        <span class="sub">or drag an image here</span>
+      </label>
+      <form class="inline-form photo-url" data-form="image-url">
+        <input type="text" name="url" autocomplete="off" inputmode="url" placeholder="…or paste an image link (https://…)">
+        <button class="btn ghost">Use link</button>
+      </form>
     </section>`;
 }
 
@@ -483,6 +551,59 @@ function importRecipeText(text) {
   return upgradeRecipe({ id: uid(), ...parsed, favorite: false, useFridge: true });
 }
 
+/* ---------------- recipe photos ---------------- */
+
+const PHOTO_MAX_SIDE = 1000;   // px — big enough for the recipe page, small enough for localStorage
+const PHOTO_QUALITY = 0.82;
+
+/** Shrink a chosen photo and turn it into a JPEG data URL that can be saved with the recipe. */
+function photoToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) { reject(new Error('not-image')); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1f1f23';                       // transparent PNGs get the panel color
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', PHOTO_QUALITY));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable')); };
+    img.src = url;
+  });
+}
+
+function setRecipeImage(recipe, image, message) {
+  const previous = recipe.image;
+  recipe.image = image;
+  if (!save()) {
+    recipe.image = previous;
+    save();
+    toast('Browser storage is full — remove a photo from another recipe and try again');
+  } else if (message) {
+    toast(message);
+  }
+  render();
+}
+
+async function addPhotoFile(file) {
+  const recipe = findRecipe(ui.recipeId);
+  if (!recipe || !file) return;
+  try {
+    setRecipeImage(recipe, await photoToDataUrl(file), 'Photo added');
+  } catch (e) {
+    toast(e.message === 'not-image'
+      ? 'That file isn\'t an image'
+      : 'Couldn\'t read that image — try a JPG or PNG');
+  }
+}
+
 /* ---------------- toast ---------------- */
 
 let toastTimer;
@@ -527,6 +648,14 @@ document.addEventListener('click', (e) => {
     case 'open-recipe':
       ui.recipeId = el.dataset.id;
       go('recipe');
+      if (el.dataset.then === 'photo') {
+        const zone = app.querySelector('.dropzone');
+        if (zone) { zone.scrollIntoView({ block: 'center' }); zone.classList.add('pulse'); }
+      }
+      break;
+
+    case 'image-remove':
+      if (recipe && confirm('Remove this photo?')) setRecipeImage(recipe, '', 'Photo removed');
       break;
 
     case 'toggle-favorite': {
@@ -642,6 +771,8 @@ document.addEventListener('change', (e) => {
     recipe.useFridge = el.checked;
     save();
     render();
+  } else if (action === 'image-file') {
+    addPhotoFile(el.files && el.files[0]);
   } else if (action === 'target-list') {
     ui.targetListId = el.value;
   } else if (action === 'item-toggle') {
@@ -715,6 +846,14 @@ document.addEventListener('submit', (e) => {
       break;
     }
 
+    case 'image-url': {
+      const url = value.trim();
+      const recipe = findRecipe(ui.recipeId);
+      if (!/^https?:\/\/\S+$/i.test(url)) { toast('Paste a full image link starting with https://'); return; }
+      setRecipeImage(recipe, url, 'Photo added');
+      return;
+    }
+
     case 'import-text': {
       const recipe = importRecipeText(value);
       if (!recipe) { toast('Paste some recipe text first'); return; }
@@ -733,6 +872,25 @@ document.addEventListener('submit', (e) => {
 
   save();
   render();
+});
+
+/* Drag a photo onto the recipe's photo area. */
+['dragenter', 'dragover'].forEach((type) => document.addEventListener(type, (e) => {
+  const zone = e.target.closest && e.target.closest('[data-dropzone]');
+  if (!zone) return;
+  e.preventDefault();
+  zone.classList.add('dragging');
+}));
+document.addEventListener('dragleave', (e) => {
+  const zone = e.target.closest && e.target.closest('[data-dropzone]');
+  if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('dragging');
+});
+document.addEventListener('drop', (e) => {
+  const zone = e.target.closest && e.target.closest('[data-dropzone]');
+  if (!zone) return;
+  e.preventDefault();
+  zone.classList.remove('dragging');
+  addPhotoFile(e.dataTransfer.files[0]);
 });
 
 render();
