@@ -27,12 +27,21 @@ npm start        # just the server — then open http://localhost:3560
 (browsers don't let a page read other websites, so that part goes through the server).
 
 ### What works
-- **Library** — create as many recipes as you want, rename them, write a description, and add ingredients.
-  Each card has a collapsible description, collapsible directions, and its ingredient list.
+- **Library** — every recipe as a card with its photo, description and ingredients.
+  - **Search** by recipe name, by an ingredient, or by several ingredients at once (`eggs, milk, butter` finds
+    recipes that use all three). Choose *Name & ingredients*, *Name* or *Ingredients* to narrow what's searched.
+    Matching ingredients are outlined on each card. Press Esc to clear.
+  - **Filters:** *★ Favorites only* and *Can make now* (every ingredient is in your fridge).
+- **Recipe page** — opens **read-only**: photo, name, description, ingredients (what you have / need) and numbered
+  directions. Anything left empty simply doesn't show. You can still add missing ingredients to a shopping list or
+  mark them "Got it" without editing.
+- **Edit** — the ✎ Edit button opens the recipe as a form (photo, name, description, ingredients, directions).
+  Changes stay in the form until you press **Save changes** (or Ctrl+S); **Cancel** throws them away. Leaving the
+  page with unsaved changes asks first. Ingredients can be typed with amounts, e.g. `2 cups flour`.
+  New recipes open straight into the form and aren't added to the library until saved.
 - **Favorites** — tap the star on any recipe (on its library thumbnail or inside the recipe). Favorited recipes get a
   filled gold star and are pinned to the top of the library; unfavorited ones show an outline star.
-- **Directions** — every recipe has its own Directions text field for the step-by-step method.
-- **Photos** — add a picture of the finished dish to any recipe: choose a file, drag an image onto the photo
+- **Photos** — add a picture of the finished dish in Edit: choose a file, drag an image onto the photo
   area, or paste an image link. Uploaded photos are shrunk to 1000px JPEGs (~50–150 KB) so they fit in browser
   storage. In the library each card shows the photo as a thumbnail under the title, with the favorite star
   sitting on its corner. Recipes without a photo show an empty frame — click it to add one.

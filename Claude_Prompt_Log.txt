@@ -29,3 +29,8 @@ is there any way you can have it all set up by running one file? I want to be ab
 [2026-10-15 11:15 EDT]  branch: updated-demo-2026-10-15
 
 Can you save every prompt I have given you today into a text file and please include that in the repository. From this point on under this project, any prompt you are given, I want you to save into a text file, denoting the date and time of the prompt if able. Update this file every time a new prompt is given please
+
+----------------------------------------------------------------------
+[2026-10-15 11:23 EDT]  branch: updated-demo-2026-10-15
+
+I have some more changes for you. When a user opens a recipe, I dont want them to be able to e3dit the recipe right away. Have the recipe open in a read only mode, that only displays the relevant information (the fields that have been filled in. any empty fields should just not show up). I want you to add an edit button to the recipe page that allows you to edit the contents of the recipe, and make sure changes are saved before returning to read only mode again. In the library page, I also want the description to appear by default, not as a dropdown menu. And the directions dont need to appear from the library, just the ingredients. I also want you to add a filtered search into the library that allows users to search for a recipe by name, by a certain ingredient or group of ingredients, as well as filter out favorites and recipes that can't be made with your current ingredients in the fridge

@@ -104,6 +104,11 @@ const ui = {
   focusKey: null,
   link: { status: 'idle' },   // link import: idle | loading | error
   importText: '',
+  editing: false,             // recipe page: false = read-only view, true = edit form
+  draft: null,                // the copy being edited; only written to the recipe on Save
+  draftOriginal: '',          // snapshot to tell whether anything changed
+  isNewRecipe: false,         // a new recipe isn't added to the library until it's saved
+  filter: { q: '', scope: 'all', favorites: false, canMake: false },
 };
 
 /* Link import needs server.js; opened as a plain file it can't fetch other sites. */
@@ -226,6 +231,7 @@ function render() {
   app.innerHTML = (views[ui.view] || renderLibrary)();
 
   app.querySelectorAll('textarea[data-autosize]').forEach(autosize);
+  syncTopbarHeight();
 
   if (ui.focusKey) {
     const el = app.querySelector(`[data-focus="${ui.focusKey}"]`);
@@ -234,24 +240,65 @@ function render() {
   }
 }
 
+/** The sticky Save/Cancel bar sits just under the header, whose height changes with screen width. */
+function syncTopbarHeight() {
+  const bar = document.querySelector('.topbar');
+  if (bar) document.documentElement.style.setProperty('--topbar-h', `${Math.round(bar.getBoundingClientRect().height)}px`);
+}
+window.addEventListener('resize', syncTopbarHeight);
+
 /** Grow a textarea to fit its text so imported directions are readable without scrolling. */
 function autosize(el) {
   el.style.height = 'auto';
   el.style.height = `${Math.min(el.scrollHeight + 2, 900)}px`;
 }
 
-function renderLibrary() {
-  const favCount = state.recipes.filter((r) => r.favorite).length;
-  const cards = sortedRecipes().map((r) => {
-    const ings = orderedIngredients(r);
-    const missing = ings.filter((i) => i.missing).length;
-    let status = '';
-    if (!r.useFridge) status = '<span class="tag">fridge check off</span>';
-    else if (!r.ingredients.length) status = '<span class="tag">no ingredients</span>';
-    else if (missing) status = `<span class="tag need">${missing} missing</span>`;
-    else status = '<span class="tag have">ready to cook</span>';
+/* ---------------- library search & filters ---------------- */
 
-    return `
+/** "eggs, milk and butter" → ['eggs', 'milk', 'butter'] — every term has to match. */
+function searchTerms(q) {
+  return String(q || '').split(/,|;|\+|&|\band\b/i).map(norm).filter(Boolean);
+}
+
+/** "tomatoes" also finds "Tomato", "eggs" finds "Egg". */
+function termMatches(text, term) {
+  const t = norm(text);
+  if (t.includes(term)) return true;
+  const singular = term.length > 3 ? term.replace(/(es|s)$/, '') : term;
+  return singular !== term && t.includes(singular);
+}
+
+const ingredientMatches = (name, terms) => terms.some((t) => termMatches(name, t));
+const canMakeNow = (r) => r.ingredients.length > 0 && r.ingredients.every(inFridge);
+
+function filteredRecipes() {
+  const { q, scope, favorites, canMake } = ui.filter;
+  const terms = searchTerms(q);
+  return sortedRecipes().filter((r) => {
+    if (favorites && !r.favorite) return false;
+    if (canMake && !canMakeNow(r)) return false;
+    return terms.every((t) =>
+      (scope !== 'ingredients' && termMatches(r.name, t)) ||
+      (scope !== 'name' && r.ingredients.some((i) => termMatches(i, t))));
+  });
+}
+
+const filtersActive = () => {
+  const f = ui.filter;
+  return Boolean(f.q.trim() || f.favorites || f.canMake);
+};
+
+function recipeCard(r, terms) {
+  const ings = orderedIngredients(r);
+  const missing = ings.filter((i) => i.missing).length;
+  let status = '';
+  if (!r.useFridge) status = '<span class="tag">fridge check off</span>';
+  else if (!r.ingredients.length) status = '<span class="tag">no ingredients</span>';
+  else if (missing) status = `<span class="tag need">${missing} missing</span>`;
+  else status = '<span class="tag have">ready to cook</span>';
+  const highlight = ui.filter.scope !== 'name' && terms.length;
+
+  return `
       <article class="recipe-card ${r.favorite ? 'fav' : ''}">
         <div class="card-top">
           <h3>${esc(r.name || 'Untitled recipe')}</h3>
@@ -259,24 +306,42 @@ function renderLibrary() {
         </div>
         ${recipeThumb(r)}
         <div class="card-meta">${status}<span class="tag">${plural(r.ingredients.length, 'ingredient')}</span></div>
-        <details class="desc">
-          <summary>Description</summary>
-          ${r.description.trim()
-            ? `<p>${esc(r.description)}</p>`
-            : '<p class="none">No description yet.</p>'}
-        </details>
-        <details class="desc">
-          <summary>Directions</summary>
-          ${r.directions.trim()
-            ? `<p>${esc(r.directions)}</p>`
-            : '<p class="none">No directions yet.</p>'}
-        </details>
+        ${r.description.trim() ? `<p class="card-desc">${esc(r.description.trim())}</p>` : ''}
         ${ings.length
-          ? `<ul class="mini-ings">${ings.map((i) =>
-              `<li class="${i.missing ? 'missing' : ''}">${esc(i.name)}</li>`).join('')}</ul>`
+          ? `<ul class="mini-ings">${ings.map((i) => {
+              const cls = [i.missing ? 'missing' : '', highlight && ingredientMatches(i.name, terms) ? 'match' : ''].join(' ').trim();
+              return `<li class="${cls}">${esc(i.name)}</li>`;
+            }).join('')}</ul>`
           : ''}
       </article>`;
-  }).join('');
+}
+
+/** The part of the library that changes while typing in the search box. */
+function renderLibraryResults() {
+  const list = filteredRecipes();
+  const terms = searchTerms(ui.filter.q);
+  const total = state.recipes.length;
+  if (!total) return '<div class="empty">Your library is empty. Create your first recipe.</div>';
+  const count = filtersActive()
+    ? `<p class="results-count">Showing ${list.length} of ${plural(total, 'recipe')} · <button class="link-btn" data-action="filter-clear">Clear search &amp; filters</button></p>`
+    : '';
+  if (!list.length) {
+    return `${count}<div class="empty">No recipes match.${ui.filter.canMake ? ' Nothing can be made with only what\'s in your fridge.' : ''}</div>`;
+  }
+  return `${count}<div class="recipe-grid">${list.map((r) => recipeCard(r, terms)).join('')}</div>`;
+}
+
+const SEARCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="search-icon"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>';
+
+function renderLibrary() {
+  const favCount = state.recipes.filter((r) => r.favorite).length;
+  const f = ui.filter;
+  const scopes = [['all', 'Name & ingredients'], ['name', 'Name'], ['ingredients', 'Ingredients']];
+  const placeholder = {
+    all: 'Search recipes or ingredients — e.g. chicken, garlic',
+    name: 'Search recipe names',
+    ingredients: 'Ingredients — e.g. eggs, milk, butter',
+  }[f.scope];
 
   return `
     <div class="view-head">
@@ -286,9 +351,27 @@ function renderLibrary() {
       </div>
       <button class="btn" data-action="new-recipe">+ New recipe</button>
     </div>
-    ${state.recipes.length
-      ? `<div class="recipe-grid">${cards}</div>`
-      : '<div class="empty">Your library is empty. Create your first recipe.</div>'}`;
+
+    ${state.recipes.length ? `
+    <div class="library-tools" role="search">
+      <label class="search-box">
+        ${SEARCH_ICON}
+        <input type="search" data-filter="q" data-focus="search" value="${esc(f.q)}" autocomplete="off"
+               placeholder="${esc(placeholder)}" aria-label="Search recipes">
+      </label>
+      <div class="filter-row">
+        <div class="seg" role="group" aria-label="Search in">
+          ${scopes.map(([key, label]) => `<button class="${f.scope === key ? 'on' : ''}" data-action="filter-scope" data-scope="${key}" aria-pressed="${f.scope === key}">${label}</button>`).join('')}
+        </div>
+        <span class="filter-spacer"></span>
+        <button class="chip-toggle ${f.favorites ? 'on' : ''}" data-action="filter-toggle" data-key="favorites" aria-pressed="${f.favorites}">★ Favorites only</button>
+        <button class="chip-toggle ${f.canMake ? 'on' : ''}" data-action="filter-toggle" data-key="canMake" aria-pressed="${f.canMake}"
+                title="Only recipes where every ingredient is in your fridge">Can make now</button>
+      </div>
+      <p class="search-hint">Separate ingredients with commas to find recipes that use all of them.</p>
+    </div>` : ''}
+
+    <div id="library-results">${renderLibraryResults()}</div>`;
 }
 
 function listOptions(selected) {
@@ -297,32 +380,74 @@ function listOptions(selected) {
   return `${opts}<option value="__new" ${selected === '__new' ? 'selected' : ''}>+ New list…</option>`;
 }
 
+/* ---------------- recipe page: read-only view ---------------- */
+
+/** Escape text, then make web links clickable. */
+function linkify(text) {
+  return esc(text).replace(/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g,
+    (u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+}
+
+function proseHtml(text) {
+  return text.trim().split(/\n\s*\n/)
+    .map((para) => `<p>${linkify(para.trim()).replace(/\n/g, '<br>')}</p>`).join('');
+}
+
+/** "1. Boil…" lines become numbered steps; "For the sauce:" lines become small headings. */
+function directionsHtml(text) {
+  const out = [];
+  let open = false;
+  let auto = 0;
+  const closeList = () => { if (open) { out.push('</ol>'); open = false; } };
+  text.split('\n').map((l) => l.trim()).filter(Boolean).forEach((line) => {
+    const m = line.match(/^(?:step\s*)?(\d{1,2})\s*[.):-]\s*(.+)$/i);
+    if (m) {
+      if (!open) { out.push('<ol class="steps">'); open = true; }
+      auto = Number(m[1]);
+      out.push(`<li><span class="step-num">${auto}</span><p>${linkify(m[2])}</p></li>`);
+    } else if (/:$/.test(line) && line.split(/\s+/).length <= 7) {
+      closeList();
+      out.push(`<h4 class="step-group">${esc(line.replace(/:$/, ''))}</h4>`);
+    } else if (open) {
+      out.push(`<li><span class="step-num">${++auto}</span><p>${linkify(line)}</p></li>`);
+    } else {
+      out.push(`<p class="step-text">${linkify(line)}</p>`);
+    }
+  });
+  closeList();
+  return out.join('');
+}
+
 function renderRecipe() {
+  if (ui.editing && ui.draft) return renderRecipeEditor(ui.draft);
   const r = findRecipe(ui.recipeId);
   if (!r) { ui.view = 'library'; return renderLibrary(); }
+  return renderRecipeView(r);
+}
 
+function renderRecipeView(r) {
   if (!findList(ui.targetListId)) ui.targetListId = state.lists[0] ? state.lists[0].id : '__new';
 
   const ings = orderedIngredients(r);
   const missing = ings.filter((i) => i.missing);
+  const hasDesc = Boolean(r.description.trim());
+  const hasDirections = Boolean(r.directions.trim());
 
   const rows = ings.map((i) => {
     const onLists = i.missing ? listsContaining(i.name) : [];
+    const amount = amountOf(r, i.name);
     let tag = '';
     if (r.useFridge) tag = i.missing ? '<span class="tag need">need</span>' : '<span class="tag have">have</span>';
     const listTag = onLists.length ? `<span class="tag info">on ${esc(onLists.join(', '))}</span>` : '';
     const actions = i.missing ? `
-        <button class="btn ghost small" data-action="add-missing-one" data-name="${esc(i.name)}" title="Add to the selected list">+ List</button>
-        <button class="btn ghost small" data-action="ingredient-to-fridge" data-name="${esc(i.name)}" title="I have this now">Got it</button>` : '';
+        <span class="row-actions">
+          <button class="btn ghost small" data-action="add-missing-one" data-name="${esc(i.name)}" title="Add to the selected shopping list">+ List</button>
+          <button class="btn ghost small" data-action="ingredient-to-fridge" data-name="${esc(i.name)}" title="I have this now">Got it</button>
+        </span>` : '';
     return `
       <li class="${i.missing ? 'missing' : ''}">
-        <span class="ing-name">${esc(i.name)}${amountOf(r, i.name)
-          ? ` <span class="ing-amount">${esc(amountOf(r, i.name))}</span>` : ''}</span>
-        ${tag}${listTag}
-        <span class="row-actions">
-          ${actions}
-          <button class="icon-btn" data-action="remove-ingredient" data-name="${esc(i.name)}" title="Remove ingredient" aria-label="Remove ${esc(i.name)}">×</button>
-        </span>
+        <span class="ing-name">${esc(i.name)}${amount ? ` <span class="ing-amount">${esc(amount)}</span>` : ''}</span>
+        ${tag}${listTag}${actions}
       </li>`;
   }).join('');
 
@@ -331,54 +456,169 @@ function renderRecipe() {
       <strong>${missing.length} missing</strong>
       <span class="spacer"></span>
       <span>Add to</span>
-      <select data-action="target-list" aria-label="Target list">${listOptions(ui.targetListId)}</select>
+      <select data-action="target-list" aria-label="Shopping list">${listOptions(ui.targetListId)}</select>
       <button class="btn small" data-action="add-missing-all">Add all missing</button>
     </div>` : '';
+
+  const nothingYet = !hasDesc && !ings.length && !hasDirections && !r.image;
 
   return `
     <div class="toolbar">
       <button class="btn ghost" data-action="nav" data-view="library">← Library</button>
       <span class="toolbar-right">
         ${starButton(r, 'large')}
-        <button class="btn ghost danger" data-action="delete-recipe">Delete recipe</button>
+        <button class="btn" data-action="edit-recipe">✎ Edit</button>
       </span>
     </div>
 
-    ${renderPhotoPanel(r)}
+    ${r.image ? `
+    <div class="recipe-hero">
+      <img src="${esc(r.image)}" alt="${esc(r.name || 'Recipe')} — finished dish"
+           onerror="this.parentNode.remove()">
+    </div>` : ''}
+
+    <header class="recipe-head">
+      <h1 class="recipe-title">${esc(r.name || 'Untitled recipe')}</h1>
+      ${sourceLine(r)}
+    </header>
+
+    ${hasDesc ? `<section class="panel prose">${proseHtml(r.description)}</section>` : ''}
+
+    ${ings.length ? `
+    <section class="panel">
+      <div class="panel-head"><h3>Ingredients <span class="sub">(${ings.length})</span></h3></div>
+      ${missingBar}
+      <ul class="ing-list view">${rows}</ul>
+    </section>` : ''}
+
+    ${hasDirections ? `
+    <section class="panel">
+      <div class="panel-head"><h3>Directions</h3></div>
+      <div class="directions-view">${directionsHtml(r.directions)}</div>
+    </section>` : ''}
+
+    ${nothingYet ? `
+    <div class="empty">Nothing added to this recipe yet.
+      <div style="margin-top:10px"><button class="btn" data-action="edit-recipe">✎ Add details</button></div>
+    </div>` : ''}`;
+}
+
+/* ---------------- recipe page: edit mode ---------------- */
+
+const EDIT_FIELDS = ['name', 'description', 'directions', 'ingredients', 'amounts', 'image', 'useFridge'];
+const editableCopy = (r) => JSON.parse(JSON.stringify(EDIT_FIELDS.reduce((o, k) => { o[k] = r[k]; return o; }, {})));
+const draftDirty = () => Boolean(ui.editing && ui.draft && JSON.stringify(ui.draft) !== ui.draftOriginal);
+
+function startEditing(recipe, isNew = false) {
+  ui.draft = editableCopy(recipe);
+  ui.draftOriginal = isNew ? '' : JSON.stringify(ui.draft);
+  ui.isNewRecipe = isNew;
+  ui.editing = true;
+}
+
+function stopEditing() {
+  ui.editing = false;
+  ui.draft = null;
+  ui.draftOriginal = '';
+  ui.isNewRecipe = false;
+}
+
+/** Ask before throwing away unsaved edits. Returns true when it's OK to leave the editor. */
+function confirmLeaveEditor() {
+  if (!ui.editing) return true;
+  if (draftDirty() && !confirm('You have unsaved changes to this recipe. Discard them?')) return false;
+  stopEditing();
+  return true;
+}
+
+function saveDraft() {
+  const d = ui.draft;
+  d.name = d.name.trim() || 'Untitled recipe';
+  let recipe = findRecipe(ui.recipeId);
+  let before = null;
+  if (ui.isNewRecipe || !recipe) {
+    recipe = upgradeRecipe({ id: ui.recipeId, ...d, favorite: false });
+    state.recipes.push(recipe);
+  } else {
+    before = editableCopy(recipe);
+    Object.assign(recipe, editableCopy(d));
+  }
+  if (!save()) {
+    // Undo, keep the user's edits in the form, and explain.
+    if (before) Object.assign(recipe, before);
+    else state.recipes = state.recipes.filter((r) => r !== recipe);
+    toast('Couldn\'t save — browser storage is full. Try a smaller photo or delete an old recipe.');
+    return false;
+  }
+  stopEditing();
+  render();
+  window.scrollTo(0, 0);
+  toast('Changes saved');
+  return true;
+}
+
+function renderRecipeEditor(d) {
+  const existing = findRecipe(ui.recipeId);
+  const rows = d.ingredients.map((name) => {
+    const amount = (d.amounts || {})[norm(name)] || '';
+    return `
+      <li>
+        <span class="ing-name">${esc(name)}${amount ? ` <span class="ing-amount">${esc(amount)}</span>` : ''}</span>
+        <span class="row-actions">
+          <button class="icon-btn" data-action="remove-ingredient" data-name="${esc(name)}" title="Remove ingredient" aria-label="Remove ${esc(name)}">×</button>
+        </span>
+      </li>`;
+  }).join('');
+
+  const actions = `
+      <button class="btn ghost" data-action="cancel-edit">Cancel</button>
+      <button class="btn" data-action="save-edit">Save changes</button>`;
+
+  return `
+    <div class="toolbar editing-bar">
+      <span class="editing-label">${ui.isNewRecipe ? 'New recipe' : 'Editing'}</span>
+      <span class="toolbar-right">${actions}</span>
+    </div>
+
+    ${renderPhotoPanel(d)}
 
     <section class="panel">
       <label class="field-label" for="recipe-name">Recipe name</label>
-      <input type="text" id="recipe-name" class="title-input" data-bind="recipe-name"
-             value="${esc(r.name)}" placeholder="Name this dish">
-      ${sourceLine(r)}
+      <input type="text" id="recipe-name" class="title-input" data-bind="recipe-name" data-focus="recipe-name"
+             value="${esc(d.name)}" placeholder="Name this dish">
       <label class="field-label" for="recipe-desc">Description</label>
       <textarea id="recipe-desc" data-bind="recipe-desc" data-autosize
-                placeholder="What is it, how do you make it, any notes…">${esc(r.description)}</textarea>
+                placeholder="What is it, any notes… (optional)">${esc(d.description)}</textarea>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h3>Ingredients <span class="sub">(${r.ingredients.length})</span></h3>
+        <h3>Ingredients <span class="sub">(${d.ingredients.length})</span></h3>
         <label class="switch">
-          <input type="checkbox" data-action="toggle-fridge" ${r.useFridge ? 'checked' : ''}>
+          <input type="checkbox" data-action="toggle-fridge" ${d.useFridge ? 'checked' : ''}>
           Check against fridge
         </label>
       </div>
       <form class="inline-form" data-form="add-ingredient">
         <input type="text" name="item" data-focus="add-ingredient" autocomplete="off"
-               placeholder="Add ingredient — separate several with commas">
+               placeholder="Add ingredient, e.g. 2 cups flour — separate several with commas">
         <button class="btn">Add</button>
       </form>
-      ${missingBar}
-      ${ings.length ? `<ul class="ing-list">${rows}</ul>` : '<div class="empty">No ingredients yet.</div>'}
+      ${d.ingredients.length ? `<ul class="ing-list">${rows}</ul>` : '<div class="empty">No ingredients yet.</div>'}
     </section>
 
     <section class="panel">
       <div class="panel-head"><h3>Directions</h3></div>
       <textarea id="recipe-directions" class="directions" data-bind="recipe-directions" data-autosize
                 aria-label="Directions"
-                placeholder="1. Preheat the oven…&#10;2. Mix the dry ingredients…">${esc(r.directions)}</textarea>
-    </section>`;
+                placeholder="1. Preheat the oven…&#10;2. Mix the dry ingredients…">${esc(d.directions)}</textarea>
+      <p class="sub">Start lines with 1. 2. 3. to show them as numbered steps.</p>
+    </section>
+
+    <div class="edit-footer">
+      ${existing && !ui.isNewRecipe ? '<button class="btn ghost danger" data-action="delete-recipe">Delete recipe</button>' : '<span></span>'}
+      <span class="toolbar-right">${actions}</span>
+    </div>`;
 }
 
 function renderPhotoPanel(r) {
@@ -658,24 +898,18 @@ function photoToDataUrl(file) {
   });
 }
 
-function setRecipeImage(recipe, image, message) {
-  const previous = recipe.image;
-  recipe.image = image;
-  if (!save()) {
-    recipe.image = previous;
-    save();
-    toast('Browser storage is full — remove a photo from another recipe and try again');
-  } else if (message) {
-    toast(message);
-  }
+/** Photos are part of the edit form: they're saved with the rest of the recipe on Save. */
+function setDraftImage(image, message) {
+  if (!ui.editing || !ui.draft) return;
+  ui.draft.image = image;
+  if (message) toast(message);
   render();
 }
 
 async function addPhotoFile(file) {
-  const recipe = findRecipe(ui.recipeId);
-  if (!recipe || !file) return;
+  if (!ui.editing || !file) return;
   try {
-    setRecipeImage(recipe, await photoToDataUrl(file), 'Photo added');
+    setDraftImage(await photoToDataUrl(file), 'Photo added — remember to save');
   } catch (e) {
     toast(e.message === 'not-image'
       ? 'That file isn\'t an image'
@@ -776,10 +1010,28 @@ function toast(msg) {
 /* ---------------- events ---------------- */
 
 function go(view) {
+  if (!confirmLeaveEditor()) return false;
   ui.view = view;
   render();
   window.scrollTo(0, 0);
+  return true;
 }
+
+function openRecipe(id, { edit = false } = {}) {
+  if (!confirmLeaveEditor()) return false;
+  ui.recipeId = id;
+  const r = findRecipe(id);
+  if (edit && r) startEditing(r);
+  ui.view = 'recipe';
+  render();
+  window.scrollTo(0, 0);
+  return true;
+}
+
+// Closing the window or reloading with unsaved edits asks first.
+window.addEventListener('beforeunload', (e) => {
+  if (draftDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
 
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
@@ -793,23 +1045,61 @@ document.addEventListener('click', (e) => {
       break;
 
     case 'new-recipe': {
-      const r = upgradeRecipe({ id: uid(), name: `Recipe ${state.recipes.length + 1}` });
-      state.recipes.push(r);
-      save();
+      if (!confirmLeaveEditor()) break;
+      const r = upgradeRecipe({ id: uid(), name: '' });
       ui.recipeId = r.id;
-      go('recipe');
-      const nameInput = document.getElementById('recipe-name');
-      if (nameInput) { nameInput.focus(); nameInput.select(); }
+      startEditing(r, true);          // not in the library until it's saved
+      ui.view = 'recipe';
+      ui.focusKey = 'recipe-name';
+      render();
+      window.scrollTo(0, 0);
       break;
     }
 
-    case 'open-recipe':
-      ui.recipeId = el.dataset.id;
-      go('recipe');
-      if (el.dataset.then === 'photo') {
+    case 'open-recipe': {
+      const toPhoto = el.dataset.then === 'photo';
+      if (!openRecipe(el.dataset.id, { edit: toPhoto })) break;
+      if (toPhoto) {
         const zone = app.querySelector('.dropzone');
         if (zone) { zone.scrollIntoView({ block: 'center' }); zone.classList.add('pulse'); }
       }
+      break;
+    }
+
+    case 'edit-recipe':
+      if (recipe) {
+        startEditing(recipe);
+        render();
+        window.scrollTo(0, 0);
+      }
+      break;
+
+    case 'save-edit':
+      saveDraft();
+      break;
+
+    case 'cancel-edit': {
+      const wasNew = ui.isNewRecipe;
+      if (!confirmLeaveEditor()) break;
+      if (wasNew) { go('library'); break; }
+      render();
+      window.scrollTo(0, 0);
+      break;
+    }
+
+    case 'filter-scope':
+      ui.filter.scope = el.dataset.scope;
+      render();
+      break;
+
+    case 'filter-toggle':
+      ui.filter[el.dataset.key] = !ui.filter[el.dataset.key];
+      render();
+      break;
+
+    case 'filter-clear':
+      ui.filter = { q: '', scope: ui.filter.scope, favorites: false, canMake: false };
+      render();
       break;
 
     case 'caption-to-text':
@@ -825,7 +1115,7 @@ document.addEventListener('click', (e) => {
       break;
 
     case 'image-remove':
-      if (recipe && confirm('Remove this photo?')) setRecipeImage(recipe, '', 'Photo removed');
+      if (ui.editing && confirm('Remove this photo?')) setDraftImage('', 'Photo removed — remember to save');
       break;
 
     case 'toggle-favorite': {
@@ -839,7 +1129,8 @@ document.addEventListener('click', (e) => {
     }
 
     case 'delete-recipe':
-      if (recipe && confirm(`Delete “${recipe.name || 'this recipe'}”?`)) {
+      if (recipe && confirm(`Delete “${recipe.name || 'this recipe'}”? This can't be undone.`)) {
+        stopEditing();
         state.recipes = state.recipes.filter((r) => r.id !== recipe.id);
         save();
         go('library');
@@ -848,10 +1139,11 @@ document.addEventListener('click', (e) => {
       break;
 
     case 'remove-ingredient': {
-      const i = recipe.ingredients.findIndex((n) => norm(n) === norm(el.dataset.name));
-      if (i > -1) recipe.ingredients.splice(i, 1);
-      delete recipe.amounts[norm(el.dataset.name)];
-      save();
+      const d = ui.draft;
+      if (!ui.editing || !d) break;
+      const i = d.ingredients.findIndex((n) => norm(n) === norm(el.dataset.name));
+      if (i > -1) d.ingredients.splice(i, 1);
+      delete d.amounts[norm(el.dataset.name)];
       render();
       break;
     }
@@ -918,6 +1210,7 @@ document.addEventListener('click', (e) => {
 
     case 'reset-demo':
       if (confirm('Reset all demo data? Your recipes, fridge and lists will be replaced with the sample data.')) {
+        stopEditing();
         state = seedData();
         save();
         ui.recipeId = null;
@@ -937,10 +1230,8 @@ document.addEventListener('change', (e) => {
   if (!action) return;
   const recipe = findRecipe(ui.recipeId);
 
-  if (action === 'toggle-fridge' && recipe) {
-    recipe.useFridge = el.checked;
-    save();
-    render();
+  if (action === 'toggle-fridge' && ui.editing && ui.draft) {
+    ui.draft.useFridge = el.checked;
   } else if (action === 'image-file') {
     addPhotoFile(el.files && el.files[0]);
   } else if (action === 'target-list') {
@@ -956,15 +1247,23 @@ document.addEventListener('change', (e) => {
 /* Text fields save as you type without re-rendering (keeps cursor position). */
 document.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.dataset.filter === 'q') {
+    // Update only the results so the search box keeps focus while typing.
+    ui.filter.q = el.value;
+    const box = document.getElementById('library-results');
+    if (box) box.innerHTML = renderLibraryResults();
+    return;
+  }
   const { bind } = el.dataset;
   if (!bind) return;
-  const recipe = findRecipe(ui.recipeId);
   if (el.matches('textarea[data-autosize]')) autosize(el);
 
-  if (bind === 'recipe-name' && recipe) recipe.name = el.value;
-  else if (bind === 'recipe-desc' && recipe) recipe.description = el.value;
-  else if (bind === 'recipe-directions' && recipe) recipe.directions = el.value;
-  else if (bind === 'import-text') { ui.importText = el.value; return; }
+  // Recipe fields change the draft only; they're written to the recipe on Save.
+  const d = ui.editing ? ui.draft : null;
+  if (bind === 'recipe-name') { if (d) d.name = el.value; return; }
+  if (bind === 'recipe-desc') { if (d) d.description = el.value; return; }
+  if (bind === 'recipe-directions') { if (d) d.directions = el.value; return; }
+  if (bind === 'import-text') { ui.importText = el.value; return; }
   else if (bind === 'list-name') findList(el.dataset.list).name = el.value;
   save();
 });
@@ -989,12 +1288,20 @@ document.addEventListener('submit', (e) => {
 
   switch (kind) {
     case 'add-ingredient': {
-      const recipe = findRecipe(ui.recipeId);
-      splitItems(value).forEach((n) => {
-        if (!recipe.ingredients.some((x) => norm(x) === norm(n))) recipe.ingredients.push(n);
+      const d = ui.draft;
+      if (!ui.editing || !d) return;
+      splitItems(value).forEach((item) => {
+        // "2 cups flour" → Flour, with "2 cups" kept as its amount.
+        const parsed = window.RecipeParser ? window.RecipeParser.parseIngredientLine(item) : [];
+        const entries = parsed.length ? parsed : [{ name: item, amount: '' }];
+        entries.forEach(({ name, amount }) => {
+          if (!d.ingredients.some((x) => norm(x) === norm(name))) d.ingredients.push(name);
+          if (amount) d.amounts[norm(name)] = amount;
+        });
       });
       ui.focusKey = 'add-ingredient';
-      break;
+      render();
+      return;
     }
 
     case 'add-fridge':
@@ -1023,9 +1330,8 @@ document.addEventListener('submit', (e) => {
 
     case 'image-url': {
       const url = value.trim();
-      const recipe = findRecipe(ui.recipeId);
       if (!/^https?:\/\/\S+$/i.test(url)) { toast('Paste a full image link starting with https://'); return; }
-      setRecipeImage(recipe, url, 'Photo added');
+      setDraftImage(url, 'Photo added — remember to save');
       return;
     }
 
@@ -1050,6 +1356,18 @@ document.addEventListener('submit', (e) => {
   render();
 });
 
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && e.target.dataset && e.target.dataset.filter === 'q' && e.target.value) {
+    e.target.value = '';
+    e.target.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  // Ctrl/Cmd+S saves while editing a recipe.
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && ui.editing) {
+    e.preventDefault();
+    saveDraft();
+  }
+});
+
 /* Drag a photo onto the recipe's photo area. */
 ['dragenter', 'dragover'].forEach((type) => document.addEventListener(type, (e) => {
   const zone = e.target.closest && e.target.closest('[data-dropzone]');
@@ -1066,7 +1384,7 @@ document.addEventListener('drop', (e) => {
   if (!zone) return;
   e.preventDefault();
   zone.classList.remove('dragging');
-  addPhotoFile(e.dataTransfer.files[0]);
+  if (ui.editing) addPhotoFile(e.dataTransfer.files[0]);
 });
 
 render();
