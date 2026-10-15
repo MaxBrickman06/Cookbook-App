@@ -9,13 +9,32 @@ A plain HTML/CSS/JavaScript demo of the app's core ideas. No build step, no serv
 
 ### What works
 - **Library** — create as many recipes as you want, rename them, write a description, and add ingredients.
-  Each card has a collapsible description and its ingredient list.
+  Each card has a collapsible description, collapsible directions, and its ingredient list.
+- **Favorites** — tap the star on any recipe (in the library or inside the recipe). Favorited recipes get a
+  filled gold star and are pinned to the top of the library; unfavorited ones show an outline star.
+- **Directions** — every recipe has its own Directions text field for the step-by-step method.
 - **Fridge** — keep track of what you have at home. Shows which recipes you can make right now.
 - **Lists** — create multiple named shopping lists, check items off, and move bought items into the fridge.
 - **Fridge check** — in each recipe, ingredients you don't have are highlighted red and moved to the top.
   This can be turned off per recipe.
 - **Quick add** — send one or all missing ingredients to any shopping list (or a new one).
-- **Import → Text** — paste a recipe; simple rule-based parsing pulls out the name, ingredients and description.
+- **Import → Text** — copy an entire recipe web page and paste it in. The scanner (`parser.js`) skips the
+  blog story, ads, ratings, buttons and comments, then pulls out:
+  - the recipe **name**
+  - every **ingredient** (saved to the ingredient list, with its amount shown beside it, e.g. *All-purpose flour — 2 1/4 cups (281g)*)
+  - the numbered **directions**, including sub-headings like "For the sauce:"
+  - a short **description** with prep/cook times, servings and any recipe notes
+
+  It's rule-based (no AI), so always glance over the result — everything stays editable.
+
+### Tests
+The text scanner is tested against sample pasted articles in `tests/articles/` (food blog, Allrecipes-style
+"Step 1" pages, grouped ingredients, no headings, and a hand-typed recipe). Requires Node 18+.
+
+```
+node --test tests/parser.test.js   # run the checks
+node tests/run.js                  # print what the scanner pulls out of each sample
+```
 
 ### Planned (shown as placeholders)
 - Import from a photo of a cookbook page

@@ -1,5 +1,6 @@
 /* Cookbook App — browser demo
  * Plain JavaScript, no frameworks, no AI. All data lives in localStorage.
+ * Recipe text scanning lives in parser.js (window.RecipeParser).
  */
 
 const STORAGE_KEY = 'cookbook-demo-v1';
@@ -22,22 +23,31 @@ function seedData() {
       {
         id: uid(),
         name: 'Cheesy Garlic Potato Bites',
-        description: 'Mash the potatoes, mix in the cheese and garlic, roll into bites and fry until golden and crispy.',
+        description: 'Crispy fried potato bites with a melty cheese center.',
         ingredients: ['Potatoes', 'Parmesan cheese', 'Mozzarella', 'Garlic powder', 'Eggs', 'Cornstarch'],
+        amounts: { potatoes: '2 lb', 'parmesan cheese': '1/2 cup, grated', mozzarella: '1 cup, cubed', 'garlic powder': '1 tsp', eggs: '1', cornstarch: '1/4 cup' },
+        directions: '1. Boil and mash the potatoes, then let them cool.\n2. Mix in the parmesan, garlic powder, egg and cornstarch.\n3. Wrap a spoonful around a cube of mozzarella and roll into a ball.\n4. Fry until golden and crispy.',
+        favorite: true,
         useFridge: true,
       },
       {
         id: uid(),
         name: 'Pancakes',
-        description: 'Whisk the dry ingredients, then the wet ones, combine and cook on a hot buttered pan.',
+        description: 'Fluffy weekend pancakes.',
         ingredients: ['Flour', 'Sugar', 'Eggs', 'Milk', 'Butter', 'Baking powder'],
+        amounts: { flour: '1 1/2 cups', sugar: '2 tbsp', eggs: '1', milk: '1 1/4 cups', butter: '3 tbsp, melted', 'baking powder': '1 tbsp' },
+        directions: '1. Whisk the flour, sugar and baking powder.\n2. Whisk the milk, egg and melted butter in another bowl.\n3. Combine until just mixed — a few lumps are fine.\n4. Cook on a hot buttered pan until bubbles form, then flip.',
+        favorite: false,
         useFridge: true,
       },
       {
         id: uid(),
         name: 'Cajun Roasted Potatoes',
-        description: 'Toss halved potatoes in oil and Cajun seasoning. Roast at 425°F for about 35 minutes.',
+        description: 'Easy spicy side dish.',
         ingredients: ['Potatoes', 'Olive oil', 'Cajun seasoning'],
+        amounts: { potatoes: '1 1/2 lb, halved', 'olive oil': '2 tbsp', 'cajun seasoning': '1 tbsp' },
+        directions: '1. Heat the oven to 425°F.\n2. Toss the halved potatoes in oil and Cajun seasoning.\n3. Roast for about 35 minutes, turning once.',
+        favorite: false,
         useFridge: true,
       },
     ],
@@ -48,12 +58,28 @@ function seedData() {
   };
 }
 
+/** Fill in fields added after a recipe was first saved (favorite, directions, amounts). */
+function upgradeRecipe(r) {
+  return {
+    ...r,
+    description: r.description || '',
+    directions: r.directions || '',
+    favorite: Boolean(r.favorite),
+    amounts: r.amounts || {},
+    ingredients: r.ingredients || [],
+    useFridge: r.useFridge !== false,
+  };
+}
+
 function loadState() {
+  let data = null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) data = JSON.parse(raw);
   } catch (e) { /* storage unavailable — fall back to seed */ }
-  return seedData();
+  data = data || seedData();
+  data.recipes = data.recipes.map(upgradeRecipe);
+  return data;
 }
 
 let state = loadState();
@@ -75,6 +101,24 @@ const ui = {
 const findRecipe = (id) => state.recipes.find((r) => r.id === id);
 const findList = (id) => state.lists.find((l) => l.id === id);
 const inFridge = (name) => state.fridge.some((f) => norm(f) === norm(name));
+const amountOf = (recipe, name) => (recipe.amounts || {})[norm(name)] || '';
+
+/** Library order: favorites first, otherwise the order recipes were added. */
+const sortedRecipes = () => [
+  ...state.recipes.filter((r) => r.favorite),
+  ...state.recipes.filter((r) => !r.favorite),
+];
+
+const STAR_PATH = 'M12 2.8l2.82 5.72 6.31.92-4.57 4.45 1.08 6.29L12 17.21l-5.64 2.97 1.08-6.29L2.87 9.44l6.31-.92z';
+function starButton(r, size = 'small') {
+  const on = r.favorite;
+  const label = on ? `Remove ${r.name || 'recipe'} from favorites` : `Add ${r.name || 'recipe'} to favorites`;
+  return `
+    <button class="star-btn ${size} ${on ? 'on' : ''}" data-action="toggle-favorite" data-id="${r.id}"
+            aria-pressed="${on}" aria-label="${esc(label)}" title="${on ? 'Favorited' : 'Add to favorites'}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}"/></svg>
+    </button>`;
+}
 
 /** Ingredients for display: missing first (when fridge check is on). */
 function orderedIngredients(recipe) {
@@ -145,6 +189,8 @@ function render() {
   };
   app.innerHTML = (views[ui.view] || renderLibrary)();
 
+  app.querySelectorAll('textarea[data-autosize]').forEach(autosize);
+
   if (ui.focusKey) {
     const el = app.querySelector(`[data-focus="${ui.focusKey}"]`);
     if (el) el.focus();
@@ -152,8 +198,15 @@ function render() {
   }
 }
 
+/** Grow a textarea to fit its text so imported directions are readable without scrolling. */
+function autosize(el) {
+  el.style.height = 'auto';
+  el.style.height = `${Math.min(el.scrollHeight + 2, 900)}px`;
+}
+
 function renderLibrary() {
-  const cards = state.recipes.map((r) => {
+  const favCount = state.recipes.filter((r) => r.favorite).length;
+  const cards = sortedRecipes().map((r) => {
     const ings = orderedIngredients(r);
     const missing = ings.filter((i) => i.missing).length;
     let status = '';
@@ -163,8 +216,9 @@ function renderLibrary() {
     else status = '<span class="tag have">ready to cook</span>';
 
     return `
-      <article class="recipe-card">
+      <article class="recipe-card ${r.favorite ? 'fav' : ''}">
         <div class="card-top">
+          ${starButton(r)}
           <h3>${esc(r.name || 'Untitled recipe')}</h3>
           <button class="btn ghost small" data-action="open-recipe" data-id="${r.id}">Open</button>
         </div>
@@ -174,6 +228,12 @@ function renderLibrary() {
           ${r.description.trim()
             ? `<p>${esc(r.description)}</p>`
             : '<p class="none">No description yet.</p>'}
+        </details>
+        <details class="desc">
+          <summary>Directions</summary>
+          ${r.directions.trim()
+            ? `<p>${esc(r.directions)}</p>`
+            : '<p class="none">No directions yet.</p>'}
         </details>
         ${ings.length
           ? `<ul class="mini-ings">${ings.map((i) =>
@@ -186,7 +246,7 @@ function renderLibrary() {
     <div class="view-head">
       <div>
         <h2>Recipe Library</h2>
-        <p class="sub">${plural(state.recipes.length, 'recipe')} · red ingredients aren't in your fridge</p>
+        <p class="sub">${plural(state.recipes.length, 'recipe')}${favCount ? ` · ${favCount} ★ favorite${favCount === 1 ? '' : 's'} pinned to the top` : ''} · red ingredients aren't in your fridge</p>
       </div>
       <button class="btn" data-action="new-recipe">+ New recipe</button>
     </div>
@@ -220,7 +280,8 @@ function renderRecipe() {
         <button class="btn ghost small" data-action="ingredient-to-fridge" data-name="${esc(i.name)}" title="I have this now">Got it</button>` : '';
     return `
       <li class="${i.missing ? 'missing' : ''}">
-        <span class="ing-name">${esc(i.name)}</span>
+        <span class="ing-name">${esc(i.name)}${amountOf(r, i.name)
+          ? ` <span class="ing-amount">${esc(amountOf(r, i.name))}</span>` : ''}</span>
         ${tag}${listTag}
         <span class="row-actions">
           ${actions}
@@ -241,7 +302,10 @@ function renderRecipe() {
   return `
     <div class="toolbar">
       <button class="btn ghost" data-action="nav" data-view="library">← Library</button>
-      <button class="btn ghost danger" data-action="delete-recipe">Delete recipe</button>
+      <span class="toolbar-right">
+        ${starButton(r, 'large')}
+        <button class="btn ghost danger" data-action="delete-recipe">Delete recipe</button>
+      </span>
     </div>
 
     <section class="panel">
@@ -249,7 +313,7 @@ function renderRecipe() {
       <input type="text" id="recipe-name" class="title-input" data-bind="recipe-name"
              value="${esc(r.name)}" placeholder="Name this dish">
       <label class="field-label" for="recipe-desc">Description</label>
-      <textarea id="recipe-desc" data-bind="recipe-desc"
+      <textarea id="recipe-desc" data-bind="recipe-desc" data-autosize
                 placeholder="What is it, how do you make it, any notes…">${esc(r.description)}</textarea>
     </section>
 
@@ -268,12 +332,19 @@ function renderRecipe() {
       </form>
       ${missingBar}
       ${ings.length ? `<ul class="ing-list">${rows}</ul>` : '<div class="empty">No ingredients yet.</div>'}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h3>Directions</h3></div>
+      <textarea id="recipe-directions" class="directions" data-bind="recipe-directions" data-autosize
+                aria-label="Directions"
+                placeholder="1. Preheat the oven…&#10;2. Mix the dry ingredients…">${esc(r.directions)}</textarea>
     </section>`;
 }
 
 function renderFridge() {
   const items = [...state.fridge].sort((a, b) => a.localeCompare(b));
-  const ready = state.recipes.filter((r) => r.useFridge && r.ingredients.length && !missingFor(r).length);
+  const ready = sortedRecipes().filter((r) => r.useFridge && r.ingredients.length && !missingFor(r).length);
 
   return `
     <div class="view-head">
@@ -301,7 +372,7 @@ function renderFridge() {
       <div class="panel-head"><h3>Ready to cook</h3></div>
       ${ready.length
         ? `<ul class="ready-list">${ready.map((r) =>
-            `<li><button data-action="open-recipe" data-id="${r.id}">${esc(r.name || 'Untitled recipe')}</button></li>`).join('')}</ul>`
+            `<li><button data-action="open-recipe" data-id="${r.id}">${r.favorite ? '★ ' : ''}${esc(r.name || 'Untitled recipe')}</button></li>`).join('')}</ul>`
         : '<p class="sub">Nothing yet — every recipe is missing at least one ingredient.</p>'}
     </section>
 
@@ -380,75 +451,36 @@ function renderImport() {
     <section class="panel">
       <div class="panel-head"><h3>Text</h3><span class="tag have">works in demo</span></div>
       <p class="sub" style="margin:0 0 12px">
-        Paste a recipe. The first line becomes the name; lines under an “Ingredients” heading become
-        ingredients; everything else goes into the description. Simple rule-based parsing — no AI.
+        Copy a whole recipe page from the internet (Ctrl+A, Ctrl+C) and paste it here. The scanner skips the
+        story, ads and buttons, finds the recipe name, every ingredient with its amount, and the step-by-step
+        directions. Check the result on the next screen — everything stays editable. Rule-based, no AI.
       </p>
       <form data-form="import-text">
-        <textarea name="text" rows="9" placeholder="Garlic Butter Noodles
+        <textarea name="text" rows="12" placeholder="Paste a recipe article here…
+
+Garlic Butter Noodles
 Quick weeknight dinner.
 
-Ingredients:
-- 8 oz spaghetti
-- 3 tbsp butter
-- 4 cloves garlic, minced
-- Parmesan cheese
+Ingredients
+8 oz spaghetti
+3 tbsp butter
+4 cloves garlic, minced
+Parmesan cheese, for serving
 
-Directions:
-Boil the pasta. Melt butter with garlic, toss together, top with parmesan."></textarea>
+Instructions
+1. Boil the pasta.
+2. Melt the butter with the garlic, toss with the pasta and top with parmesan."></textarea>
         <div style="margin-top:10px"><button class="btn">Scan text</button></div>
       </form>
     </section>`;
 }
 
-/* ---------------- text import (rule-based) ---------------- */
+/* ---------------- text import ---------------- */
 
-const UNIT_RE = /^(cups?|c\.|tbsps?|tablespoons?|tsps?|teaspoons?|oz|ounces?|lbs?|pounds?|g|grams?|kg|ml|l|liters?|cloves?|pinch(es)?|dash(es)?|cans?|slices?|sticks?|packages?|pkgs?|bunch(es)?|heads?|large|medium|small)\b\.?\s*(of\s+)?/i;
-
-function cleanIngredient(line) {
-  let s = line.replace(/^[-*•·]\s*/, '').replace(/^\d+[.)]\s+/, '');
-  const qty = s.match(/^[\d\s/.½¼¾⅓⅔⅛-]+/);
-  if (qty && /\d|[½¼¾⅓⅔⅛]/.test(qty[0])) {
-    s = s.slice(qty[0].length);
-    s = s.replace(UNIT_RE, '');
-  }
-  s = s.replace(/\(.*?\)/g, '').split(',')[0].trim();
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-}
-
-function parseRecipeText(text) {
-  const lines = text.split(/\r?\n/).map((l) => l.trim());
-  const firstIdx = lines.findIndex(Boolean);
-  if (firstIdx === -1) return null;
-
-  const name = lines[firstIdx].replace(/^#+\s*/, '');
-  const ingredients = [];
-  const desc = [];
-  let section = 'desc';
-
-  lines.slice(firstIdx + 1).forEach((line) => {
-    const heading = line.toLowerCase().replace(/[:#*]/g, '').trim();
-    if (/^ingredients?$/.test(heading)) { section = 'ing'; return; }
-    if (/^(directions|instructions|method|steps|preparation|description|notes)$/.test(heading)) {
-      section = 'desc';
-      if (desc.length) desc.push('');
-      return;
-    }
-    if (section === 'ing') {
-      if (!line) return;
-      const ing = cleanIngredient(line);
-      if (ing && !ingredients.some((x) => norm(x) === norm(ing))) ingredients.push(ing);
-    } else {
-      desc.push(line);
-    }
-  });
-
-  return {
-    id: uid(),
-    name,
-    description: desc.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
-    ingredients,
-    useFridge: true,
-  };
+function importRecipeText(text) {
+  const parsed = window.RecipeParser.parseRecipe(text);
+  if (!parsed) return null;
+  return upgradeRecipe({ id: uid(), ...parsed, favorite: false, useFridge: true });
 }
 
 /* ---------------- toast ---------------- */
@@ -482,7 +514,7 @@ document.addEventListener('click', (e) => {
       break;
 
     case 'new-recipe': {
-      const r = { id: uid(), name: `Recipe ${state.recipes.length + 1}`, description: '', ingredients: [], useFridge: true };
+      const r = upgradeRecipe({ id: uid(), name: `Recipe ${state.recipes.length + 1}` });
       state.recipes.push(r);
       save();
       ui.recipeId = r.id;
@@ -497,6 +529,16 @@ document.addEventListener('click', (e) => {
       go('recipe');
       break;
 
+    case 'toggle-favorite': {
+      const r = findRecipe(el.dataset.id);
+      if (!r) break;
+      r.favorite = !r.favorite;
+      save();
+      render();
+      toast(r.favorite ? `★ “${r.name || 'Recipe'}” pinned to the top` : 'Removed from favorites');
+      break;
+    }
+
     case 'delete-recipe':
       if (recipe && confirm(`Delete “${recipe.name || 'this recipe'}”?`)) {
         state.recipes = state.recipes.filter((r) => r.id !== recipe.id);
@@ -509,6 +551,7 @@ document.addEventListener('click', (e) => {
     case 'remove-ingredient': {
       const i = recipe.ingredients.findIndex((n) => norm(n) === norm(el.dataset.name));
       if (i > -1) recipe.ingredients.splice(i, 1);
+      delete recipe.amounts[norm(el.dataset.name)];
       save();
       render();
       break;
@@ -615,9 +658,11 @@ document.addEventListener('input', (e) => {
   const { bind } = el.dataset;
   if (!bind) return;
   const recipe = findRecipe(ui.recipeId);
+  if (el.matches('textarea[data-autosize]')) autosize(el);
 
   if (bind === 'recipe-name' && recipe) recipe.name = el.value;
   else if (bind === 'recipe-desc' && recipe) recipe.description = el.value;
+  else if (bind === 'recipe-directions' && recipe) recipe.directions = el.value;
   else if (bind === 'list-name') findList(el.dataset.list).name = el.value;
   save();
 });
@@ -671,13 +716,14 @@ document.addEventListener('submit', (e) => {
     }
 
     case 'import-text': {
-      const recipe = parseRecipeText(value);
+      const recipe = importRecipeText(value);
       if (!recipe) { toast('Paste some recipe text first'); return; }
       state.recipes.push(recipe);
       save();
       ui.recipeId = recipe.id;
       go('recipe');
-      toast(`Imported “${recipe.name}” with ${plural(recipe.ingredients.length, 'ingredient')}`);
+      const steps = recipe.directions.split('\n').filter((l) => /^\d+\. /.test(l)).length;
+      toast(`Imported “${recipe.name}” · ${plural(recipe.ingredients.length, 'ingredient')} · ${plural(steps, 'step')}`);
       return;
     }
 

@@ -10,6 +10,7 @@
   --red: #ff6b6b;
   --red-bg: rgba(255, 107, 107, 0.12);
   --green: #6fd394;
+  --gold: #f5c451;
   --radius: 10px;
 }
 
@@ -199,8 +200,31 @@ select { width: auto; padding: 5px 8px; }
   flex-direction: column;
   gap: 10px;
 }
-.recipe-card .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.recipe-card h3 { word-break: break-word; }
+.recipe-card .card-top { display: flex; align-items: flex-start; gap: 8px; }
+.recipe-card h3 { word-break: break-word; flex: 1; padding-top: 2px; }
+.recipe-card.fav { border-color: rgba(245, 196, 81, .35); }
+
+/* favorite star: outline when off, filled gold when on */
+.star-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  margin: -2px 0 0 -2px;
+  cursor: pointer;
+  color: var(--muted);
+  border-radius: 6px;
+  line-height: 0;
+  flex: none;
+}
+.star-btn svg { width: 22px; height: 22px; display: block; transition: transform .15s; }
+.star-btn.large svg { width: 28px; height: 28px; }
+.star-btn path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; transition: fill .15s; }
+.star-btn:hover { color: var(--gold); }
+.star-btn:hover svg { transform: scale(1.12); }
+.star-btn.on { color: var(--gold); }
+.star-btn.on path { fill: var(--gold); }
+.star-btn.on svg { filter: drop-shadow(0 0 6px rgba(245, 196, 81, .45)); }
+.star-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .recipe-card .card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
 
 details.desc {
@@ -230,7 +254,9 @@ details.desc p.none { color: var(--muted); font-style: italic; }
 .mini-ings li.missing { color: var(--red); background: var(--red-bg); border-color: rgba(255,107,107,.35); }
 
 /* ---------- recipe editor ---------- */
-.toolbar { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 16px; }
+.toolbar-right { display: flex; align-items: center; gap: 12px; }
+textarea.directions { min-height: 180px; line-height: 1.6; }
 
 .title-input { font-size: 20px; font-weight: 600; }
 
@@ -267,6 +293,8 @@ details.desc p.none { color: var(--muted); font-style: italic; }
 .ing-list li.missing { background: var(--red-bg); border-color: rgba(255,107,107,.3); }
 .ing-list li.missing .ing-name { color: var(--red); font-weight: 600; }
 .ing-name { flex: 1; min-width: 120px; word-break: break-word; }
+.ing-amount { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: 6px; }
+.ing-list li.missing .ing-amount { color: var(--muted); font-weight: 400; }
 .row-actions { display: flex; gap: 6px; align-items: center; }
 .divider { height: 1px; background: var(--line); margin: 10px 0; }
 
