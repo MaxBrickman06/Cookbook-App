@@ -64,3 +64,8 @@ Each player has a blog they can customize with pictures and backgrounds, and oth
 Reflection: This hit the limit of what the LLM can do visually, and the limit of what I can build functionally. I added every feature I could think of, but none of them pushed the LLM in a way it hadn’t already been tested. I guess I've just been trying to have a product reflect me rather than test the AI unlike I had for the first project when I was unfamiliar with the AI, I am now 'managing' it than 'testing' it. I was also preserving tokens now that I know how they work...
 
 add in the screenshots you gave me as well please
+
+----------------------------------------------------------------------
+[2026-10-15 11:56 EDT]  branch: updated-demo-2026-10-15
+
+Can you generate me bullet points of what was added in todays session. Arrange them in an order that naturally flows from one to the next so I can show them off in a single concise demo
