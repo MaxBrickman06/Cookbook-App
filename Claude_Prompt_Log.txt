@@ -34,3 +34,33 @@ Can you save every prompt I have given you today into a text file and please inc
 [2026-10-15 11:23 EDT]  branch: updated-demo-2026-10-15
 
 I have some more changes for you. When a user opens a recipe, I dont want them to be able to e3dit the recipe right away. Have the recipe open in a read only mode, that only displays the relevant information (the fields that have been filled in. any empty fields should just not show up). I want you to add an edit button to the recipe page that allows you to edit the contents of the recipe, and make sure changes are saved before returning to read only mode again. In the library page, I also want the description to appear by default, not as a dropdown menu. And the directions dont need to appear from the library, just the ingredients. I also want you to add a filtered search into the library that allows users to search for a recipe by name, by a certain ingredient or group of ingredients, as well as filter out favorites and recipes that can't be made with your current ingredients in the fridge
+
+----------------------------------------------------------------------
+[2026-10-15 11:41 EDT]  branch: updated-demo-2026-10-15
+Attached: two text files (other students' Project 2 posts, used as examples)
+
+[Project 2] Project summary and demo (Week 8 Tuesday - Reaching the limit)
+Team project update (Push the project to feature complete and reach either your or your LLM's limit, state explicitly whether it's your limit or your agent's limit.) Post:
+
+* Project summary
+* Screenshots
+
+
+Examples from other groups:
+
+VibePaint is an interactive game where you paint and AI critiques your work and builds it into the world. The critique includes a letter grade and a written response. These responses can be viewed again in the museum. You can use a Claude or Gemini API key and it will generate a 3d version of your 2d painting which is then added to the world. For example if you paint a tree a 3d rendition of that tree is added to the world. When it is added a beacon appears so you can see where the new model is located. The critiques also exist in the world, they walk around the art museum and you can talk with them. They will make comments on the paintings that you have made. When you first spawn into the game it will be dark and empty, you get a questbook that tells you what to paint to fill the world, for example the sun, flowers, and trees. There are villagers that will talk to you about their requests and will comment once you finish them. 
+
+Offline mode is also available so the game is playable without an API key. Paintings are graded based on color theory, techniques, and composition so a critique is still generated. The 3D modeling in offline mode the game will ask you to select from options on what your painting is of. This determines where the item will spawn in like the sky, the lake, the grass etc. It then takes the painting and adds plain gray depth to it. If you want a proper 3d generated later there is a button at the painting in the museum to do so.
+
+Limits:
+• We ran across both human and LLM limits.
+• Both: One big limit was tokens, especially with the free tier of Gemini API keys. This is both a human and LLM limit as money is a limiting factor for both.
+• LLM limit: The bigger the project got the longer it took for the LLM to make changes and if its changes were bugged it took even longer.
+• Human limit: As the project continued to get bigger it became almost impossible to debug anything by hand and therefore had to be left to the LLM which, as stated earlier, took more and more time to use
+[tmp_69e6652f-b28a-4186-aa5c-becf442522fd.png](https://ohio.instructure.com/files/8832321/download?download_frd=1&verifier=47b3be1b-486d-431f-9baa-2cf1df2f0a8c)
+
+Update: Dress Up World has grown from a single dress-up game into a small online world. Players now create an account, design their avatar and pick a name, then step into a styled town. They can walk its streets, enter the Maison Rose boutique, browse its weekly stock and try pieces on in the fitting room. At home, players decorate their own house room by room: they place furniture, change the wallpaper and floors, and restyle the outside of the house.
+Each player has a blog they can customize with pictures and backgrounds, and other players can visit it. Clicking a player opens their ID card with their photo, likes, dislikes, the date they joined and what they’re wearing. Flipping the card shows their own notes, like events they're going to. The world also has a day/night cycle and changing weather, and HP and Sleep drop as you play. I redid the avatar from scratch and gave the whole game one consistent look, from the login page to the pause menu.
+Reflection: This hit the limit of what the LLM can do visually, and the limit of what I can build functionally. I added every feature I could think of, but none of them pushed the LLM in a way it hadn’t already been tested. I guess I've just been trying to have a product reflect me rather than test the AI unlike I had for the first project when I was unfamiliar with the AI, I am now 'managing' it than 'testing' it. I was also preserving tokens now that I know how they work...
+
+add in the screenshots you gave me as well please
