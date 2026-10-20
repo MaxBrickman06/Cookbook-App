@@ -1,11 +1,12 @@
 
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
-import { recipes } from "@/data/recipes";
+
+import prisma from "@/lib/prisma";
 import FavoriteRecipeButton from "./FavoriteRecipeButton";
 import IngredientAvailability from "./IngredientAvailability";
 import styles from "./page.module.css";
-import Image from "next/image";
 
 type RecipePageProps = {
   params: Promise<{
@@ -18,10 +19,29 @@ export default async function RecipePage({
 }: RecipePageProps) {
   const { id } = await params;
 
-  const recipe = recipes.find(
-    (item) => item.id === Number(id)
-  );
+  // Convert the URL parameter to a numeric database ID.
+  const recipeId = Number(id);
 
+  if (!Number.isSafeInteger(recipeId) || recipeId < 1) {
+    notFound();
+  }
+
+  // Retrieve the recipe from PostgreSQL.
+  const recipe = await prisma.recipe.findUnique({
+    where: {
+      id: recipeId,
+    },
+    include: {
+      ingredients: true,
+      directions: {
+        orderBy: {
+          stepNumber: "asc",
+        },
+      },
+    },
+  });
+
+  // Show the 404 page if the recipe doesn't exist.
   if (!recipe) {
     notFound();
   }
@@ -35,7 +55,7 @@ export default async function RecipePage({
       <section className={styles.recipeDetailHero}>
         <div className={styles.recipeDetailImageContainer}>
           <Image
-            src={recipe.image}
+            src={recipe.imageUrl}
             alt={recipe.title}
             fill
             sizes="(max-width: 800px) 100vw, 55vw"
@@ -73,20 +93,23 @@ export default async function RecipePage({
 
       <section className={styles.recipeDetailContent}>
         <IngredientAvailability
-          ingredients={recipe.ingredients}
+          ingredients={recipe.ingredients.map((ingredient) => ({
+            amount: ingredient.amount,
+            name: ingredient.name,
+          }))}
         />
 
         <div className={styles.directionsSection}>
           <h2>Directions</h2>
 
           <div className={styles.directionsList}>
-            {recipe.directions.map((direction, index) => (
+            {recipe.directions.map((direction) => (
               <div
-                key={index}
+                key={direction.id}
                 className={styles.directionStep}
               >
-                <span>{index + 1}</span>
-                <p>{direction}</p>
+                <span>{direction.stepNumber}</span>
+                <p>{direction.instruction}</p>
               </div>
             ))}
           </div>

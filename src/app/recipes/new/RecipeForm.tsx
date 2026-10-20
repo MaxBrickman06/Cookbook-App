@@ -27,6 +27,9 @@ const ALLOWED_IMAGE_TYPES = [
   "image/webp",
 ];
 
+const TEMP_IMAGE_URL =
+  "https://images.unsplash.com/photo-1532550907401-a500c9a57435";
+
 export default function RecipeForm() {
   // Recipe details
   const [title, setTitle] = useState("");
@@ -48,14 +51,16 @@ export default function RecipeForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(
     null
   );
-  const [isDragging, setIsDragging] = useState(false);
 
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Validation
+  // Form state
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Clean up image preview URLs
+  // Clean up temporary image preview URLs
   useEffect(() => {
     if (!imagePreview) return;
 
@@ -118,6 +123,7 @@ export default function RecipeForm() {
   // Image functions
   function handleImage(file: File) {
     setError("");
+    setSuccess("");
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       setError("Please upload a JPG, PNG, or WebP image.");
@@ -155,7 +161,11 @@ export default function RecipeForm() {
   function handleDragLeave(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
 
-    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+    if (
+      !event.currentTarget.contains(
+        event.relatedTarget as Node
+      )
+    ) {
       setIsDragging(false);
     }
   }
@@ -176,30 +186,47 @@ export default function RecipeForm() {
     setImagePreview(null);
   }
 
-  // Validate and submit
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  // Validate and submit recipe
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
     setError("");
+    setSuccess("");
 
-    const cleanedIngredients = ingredients.map((ingredient) => ({
-      amount: ingredient.amount.trim(),
-      name: ingredient.name.trim(),
-    }));
-
-    const cleanedDirections = directions.map((direction) =>
-      direction.trim()
+    const cleanedIngredients = ingredients.map(
+      (ingredient) => ({
+        amount: ingredient.amount.trim(),
+        name: ingredient.name.trim(),
+      })
     );
 
+    const cleanedDirections = directions.map(
+      (direction) => direction.trim()
+    );
+
+    // Validate recipe name
     if (!title.trim()) {
       setError("Please enter a recipe name.");
       return;
     }
 
+    // Validate description
+    if (!description.trim()) {
+      setError("Please enter a recipe description.");
+      return;
+    }
+
+    // Validate category and cook time
     if (!category || !cookTime.trim()) {
       setError("Please complete all recipe details.");
       return;
     }
 
+    // Validate servings
     const parsedServings = Number(servings);
 
     if (
@@ -211,6 +238,7 @@ export default function RecipeForm() {
       return;
     }
 
+    // Validate ingredients
     if (
       cleanedIngredients.length === 0 ||
       cleanedIngredients.some(
@@ -222,20 +250,24 @@ export default function RecipeForm() {
       return;
     }
 
+    // Validate directions
     if (
       cleanedDirections.length === 0 ||
-      cleanedDirections.some((direction) => !direction)
+      cleanedDirections.some(
+        (direction) => !direction
+      )
     ) {
       setError("Please complete all cooking directions.");
       return;
     }
 
+    // Validate image
     if (!imageFile) {
       setError("Please upload a recipe image.");
       return;
     }
 
-    // The image is a File until uploaded to permanent storage.
+    // Prepare recipe data for the backend
     const recipeData: Omit<CreateRecipeInput, "image"> = {
       title: title.trim(),
       description: description.trim(),
@@ -246,10 +278,68 @@ export default function RecipeForm() {
       directions: cleanedDirections,
     };
 
-    console.log("Validated recipe:", {
-      ...recipeData,
-      imageFile,
-    });
+    setIsSubmitting(true);
+
+    try {
+      // Send recipe to our Next.js API
+      const response = await fetch("/api/recipes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...recipeData,
+
+          // Temporary image URL until uploads are implemented
+          imageUrl: TEMP_IMAGE_URL,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(
+          () => null
+        );
+
+        console.error("API error:", errorData);
+
+        throw new Error(
+          "Failed to save recipe. Please try again."
+        );
+      }
+
+      const savedRecipe = await response.json();
+
+      console.log("Recipe saved successfully:", savedRecipe);
+
+      setSuccess("Recipe saved successfully!");
+
+      // Reset form after successful submission
+      setTitle("");
+      setDescription("");
+      setCategory("");
+      setCookTime("");
+      setServings("");
+
+      setIngredients([
+        { amount: "", name: "" },
+      ]);
+
+      setDirections([""]);
+
+      setImageFile(null);
+      setImagePreview(null);
+
+    } catch (error) {
+      console.error("Error saving recipe:", error);
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -266,18 +356,22 @@ export default function RecipeForm() {
 
         <div className={styles.formGroup}>
           <label htmlFor="title">Recipe Name</label>
+
           <input
             id="title"
             type="text"
             placeholder="e.g. Creamy Garlic Chicken"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) =>
+              setTitle(event.target.value)
+            }
             required
           />
         </div>
 
         <div className={styles.formGroup}>
           <label htmlFor="description">Description</label>
+
           <textarea
             id="description"
             rows={4}
@@ -286,12 +380,14 @@ export default function RecipeForm() {
             onChange={(event) =>
               setDescription(event.target.value)
             }
+            required
           />
         </div>
 
         <div className={styles.formRow}>
           <div className={styles.formGroup}>
             <label htmlFor="category">Category</label>
+
             <select
               id="category"
               value={category}
@@ -303,6 +399,7 @@ export default function RecipeForm() {
               <option value="" disabled>
                 Select a category
               </option>
+
               <option value="Breakfast">Breakfast</option>
               <option value="Lunch">Lunch</option>
               <option value="Dinner">Dinner</option>
@@ -312,6 +409,7 @@ export default function RecipeForm() {
 
           <div className={styles.formGroup}>
             <label htmlFor="cook-time">Cook Time</label>
+
             <input
               id="cook-time"
               type="text"
@@ -326,6 +424,7 @@ export default function RecipeForm() {
 
           <div className={styles.formGroup}>
             <label htmlFor="servings">Servings</label>
+
             <input
               id="servings"
               type="number"
@@ -436,7 +535,10 @@ export default function RecipeForm() {
                 aria-label={`Direction step ${index + 1}`}
                 value={direction}
                 onChange={(event) =>
-                  updateDirection(index, event.target.value)
+                  updateDirection(
+                    index,
+                    event.target.value
+                  )
                 }
                 required
               />
@@ -502,7 +604,9 @@ export default function RecipeForm() {
               <button
                 type="button"
                 className={styles.uploadButton}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
               >
                 Change Image
               </button>
@@ -529,7 +633,9 @@ export default function RecipeForm() {
               <button
                 type="button"
                 className={styles.uploadButton}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
               >
                 Choose Image
               </button>
@@ -545,13 +651,23 @@ export default function RecipeForm() {
         </p>
       )}
 
+      {/* Success Message */}
+      {success && (
+        <p role="status">
+          {success}
+        </p>
+      )}
+
       {/* Form Actions */}
       <div className={styles.formActions}>
         <button
           type="submit"
           className={styles.saveRecipeButton}
+          disabled={isSubmitting}
         >
-          Test Form →
+          {isSubmitting
+            ? "Saving Recipe..."
+            : "Save Recipe →"}
         </button>
       </div>
     </form>
