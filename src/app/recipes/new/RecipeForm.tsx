@@ -27,9 +27,6 @@ const ALLOWED_IMAGE_TYPES = [
   "image/webp",
 ];
 
-const TEMP_IMAGE_URL =
-  "https://images.unsplash.com/photo-1532550907401-a500c9a57435";
-
 export default function RecipeForm() {
   // Recipe details
   const [title, setTitle] = useState("");
@@ -51,11 +48,11 @@ export default function RecipeForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(
     null
   );
-
   const [isDragging, setIsDragging] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form state
+  // Submission state
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,7 +66,10 @@ export default function RecipeForm() {
     };
   }, [imagePreview]);
 
+  // -----------------------------
   // Ingredient functions
+  // -----------------------------
+
   function addIngredient() {
     setIngredients((previous) => [
       ...previous,
@@ -99,7 +99,10 @@ export default function RecipeForm() {
     );
   }
 
+  // -----------------------------
   // Direction functions
+  // -----------------------------
+
   function addDirection() {
     setDirections((previous) => [...previous, ""]);
   }
@@ -120,7 +123,10 @@ export default function RecipeForm() {
     );
   }
 
+  // -----------------------------
   // Image functions
+  // -----------------------------
+
   function handleImage(file: File) {
     setError("");
     setSuccess("");
@@ -130,8 +136,8 @@ export default function RecipeForm() {
       return;
     }
 
-    if (file.size > MAX_IMAGE_SIZE) {
-      setError("Image must be smaller than 5 MB.");
+    if (file.size === 0 || file.size > MAX_IMAGE_SIZE) {
+      setError("Image must be between 1 byte and 5 MB.");
       return;
     }
 
@@ -186,7 +192,10 @@ export default function RecipeForm() {
     setImagePreview(null);
   }
 
+  // -----------------------------
   // Validate and submit recipe
+  // -----------------------------
+
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -208,25 +217,21 @@ export default function RecipeForm() {
       (direction) => direction.trim()
     );
 
-    // Validate recipe name
     if (!title.trim()) {
       setError("Please enter a recipe name.");
       return;
     }
 
-    // Validate description
     if (!description.trim()) {
       setError("Please enter a recipe description.");
       return;
     }
 
-    // Validate category and cook time
     if (!category || !cookTime.trim()) {
       setError("Please complete all recipe details.");
       return;
     }
 
-    // Validate servings
     const parsedServings = Number(servings);
 
     if (
@@ -238,7 +243,6 @@ export default function RecipeForm() {
       return;
     }
 
-    // Validate ingredients
     if (
       cleanedIngredients.length === 0 ||
       cleanedIngredients.some(
@@ -250,7 +254,6 @@ export default function RecipeForm() {
       return;
     }
 
-    // Validate directions
     if (
       cleanedDirections.length === 0 ||
       cleanedDirections.some(
@@ -261,13 +264,11 @@ export default function RecipeForm() {
       return;
     }
 
-    // Validate image
     if (!imageFile) {
       setError("Please upload a recipe image.");
       return;
     }
 
-    // Prepare recipe data for the backend
     const recipeData: Omit<CreateRecipeInput, "image"> = {
       title: title.trim(),
       description: description.trim(),
@@ -281,7 +282,26 @@ export default function RecipeForm() {
     setIsSubmitting(true);
 
     try {
-      // Send recipe to our Next.js API
+      // Step 1: Upload image to local storage
+      const formData = new FormData();
+      formData.append("image", imageFile);
+
+      const uploadResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadResult = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        throw new Error(
+          uploadResult.error ?? "Failed to upload image."
+        );
+      }
+
+      const imageUrl: string = uploadResult.imageUrl;
+
+      // Step 2: Save recipe to PostgreSQL
       const response = await fetch("/api/recipes", {
         method: "POST",
         headers: {
@@ -289,43 +309,30 @@ export default function RecipeForm() {
         },
         body: JSON.stringify({
           ...recipeData,
-
-          // Temporary image URL until uploads are implemented
-          imageUrl: TEMP_IMAGE_URL,
+          imageUrl,
         }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json().catch(
-          () => null
-        );
-
-        console.error("API error:", errorData);
-
         throw new Error(
-          "Failed to save recipe. Please try again."
+          result.error ?? "Failed to save recipe."
         );
       }
 
-      const savedRecipe = await response.json();
-
-      console.log("Recipe saved successfully:", savedRecipe);
+      console.log("Recipe saved successfully:", result);
 
       setSuccess("Recipe saved successfully!");
 
-      // Reset form after successful submission
+      // Reset form
       setTitle("");
       setDescription("");
       setCategory("");
       setCookTime("");
       setServings("");
-
-      setIngredients([
-        { amount: "", name: "" },
-      ]);
-
+      setIngredients([{ amount: "", name: "" }]);
       setDirections([""]);
-
       setImageFile(null);
       setImagePreview(null);
 
