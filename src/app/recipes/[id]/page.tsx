@@ -7,6 +7,7 @@ import prisma from "@/lib/prisma";
 import FavoriteRecipeButton from "./FavoriteRecipeButton";
 import IngredientAvailability from "./IngredientAvailability";
 import styles from "./page.module.css";
+import DeleteRecipeButton from "./DeleteRecipeButton";
 
 type RecipePageProps = {
   params: Promise<{
@@ -88,6 +89,22 @@ export default async function RecipePage({
           </div>
 
           <FavoriteRecipeButton recipeId={recipe.id} />
+          <Link
+            href={`/recipes/${recipe.id}/edit`}
+            style={{
+              display: "inline-block",
+              padding: "12px 20px",
+              backgroundColor: "#2563eb",
+              color: "white",
+              borderRadius: "8px",
+              textDecoration: "none",
+              marginTop: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            Edit Recipe
+          </Link>
+          <DeleteRecipeButton recipeId={recipe.id} />
         </div>
       </section>
 

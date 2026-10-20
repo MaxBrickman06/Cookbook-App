@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 import type {
   Ingredient,
@@ -27,27 +28,72 @@ const ALLOWED_IMAGE_TYPES = [
   "image/webp",
 ];
 
-export default function RecipeForm() {
+// Data passed in when editing an existing recipe
+export type EditableRecipe = {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  cookTime: string;
+  servings: number;
+  imageUrl: string;
+  ingredients: Ingredient[];
+  directions: string[];
+};
+
+type RecipeFormProps = {
+  initialRecipe?: EditableRecipe;
+};
+
+export default function RecipeForm({
+  initialRecipe,
+}: RecipeFormProps) {
+  const router = useRouter();
+
+  const isEditing = initialRecipe !== undefined;
+
   // Recipe details
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [cookTime, setCookTime] = useState("");
-  const [servings, setServings] = useState("");
+  const [title, setTitle] = useState(
+    initialRecipe?.title ?? ""
+  );
+
+  const [description, setDescription] = useState(
+    initialRecipe?.description ?? ""
+  );
+
+  const [category, setCategory] = useState(
+    initialRecipe?.category ?? ""
+  );
+
+  const [cookTime, setCookTime] = useState(
+    initialRecipe?.cookTime ?? ""
+  );
+
+  const [servings, setServings] = useState(
+    initialRecipe ? String(initialRecipe.servings) : ""
+  );
 
   // Ingredients
-  const [ingredients, setIngredients] = useState<Ingredient[]>([
-    { amount: "", name: "" },
-  ]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(
+    initialRecipe?.ingredients.map((ingredient) => ({
+      amount: ingredient.amount,
+      name: ingredient.name,
+    })) ?? [{ amount: "", name: "" }]
+  );
 
   // Directions
-  const [directions, setDirections] = useState<string[]>([""]);
+  const [directions, setDirections] = useState<string[]>(
+    initialRecipe?.directions ?? [""]
+  );
 
-  // Image upload
+  // Selected image file (new uploads only)
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  // Temporary browser URL for a newly selected image
   const [imagePreview, setImagePreview] = useState<string | null>(
     null
   );
+
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +102,10 @@ export default function RecipeForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Existing saved image or newly selected image
+  const displayedImage =
+    imagePreview ?? initialRecipe?.imageUrl ?? null;
 
   // Clean up temporary image preview URLs
   useEffect(() => {
@@ -193,6 +243,24 @@ export default function RecipeForm() {
   }
 
   // -----------------------------
+  // Reset form after creation
+  // -----------------------------
+
+  function resetForm() {
+    setTitle("");
+    setDescription("");
+    setCategory("");
+    setCookTime("");
+    setServings("");
+
+    setIngredients([{ amount: "", name: "" }]);
+    setDirections([""]);
+
+    setImageFile(null);
+    setImagePreview(null);
+  }
+
+  // -----------------------------
   // Validate and submit recipe
   // -----------------------------
 
@@ -264,7 +332,9 @@ export default function RecipeForm() {
       return;
     }
 
-    if (!imageFile) {
+    // New recipes require an image.
+    // Existing recipes can keep their saved image.
+    if (!imageFile && !initialRecipe?.imageUrl) {
       setError("Please upload a recipe image.");
       return;
     }
@@ -282,28 +352,43 @@ export default function RecipeForm() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Upload image to local storage
-      const formData = new FormData();
-      formData.append("image", imageFile);
+      // Keep the existing image when editing,
+      // unless a replacement image was selected.
+      let imageUrl = initialRecipe?.imageUrl ?? "";
 
-      const uploadResponse = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("image", imageFile);
 
-      const uploadResult = await uploadResponse.json();
+        const uploadResponse = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-      if (!uploadResponse.ok) {
-        throw new Error(
-          uploadResult.error ?? "Failed to upload image."
-        );
+        const uploadResult = await uploadResponse.json();
+
+        if (!uploadResponse.ok) {
+          throw new Error(
+            uploadResult.error ?? "Failed to upload image."
+          );
+        }
+
+        if (typeof uploadResult.imageUrl !== "string") {
+          throw new Error("Upload returned an invalid image URL.");
+        }
+
+        imageUrl = uploadResult.imageUrl;
       }
 
-      const imageUrl: string = uploadResult.imageUrl;
+      // Choose the endpoint and HTTP method.
+      const endpoint = isEditing
+        ? `/api/recipes/${initialRecipe.id}`
+        : "/api/recipes";
 
-      // Step 2: Save recipe to PostgreSQL
-      const response = await fetch("/api/recipes", {
-        method: "POST",
+      const method = isEditing ? "PATCH" : "POST";
+
+      const response = await fetch(endpoint, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -316,6 +401,8 @@ export default function RecipeForm() {
       const result = await response.json();
 
       if (!response.ok) {
+        console.error("Recipe API error:", result);
+
         throw new Error(
           result.error ?? "Failed to save recipe."
         );
@@ -323,19 +410,14 @@ export default function RecipeForm() {
 
       console.log("Recipe saved successfully:", result);
 
-      setSuccess("Recipe saved successfully!");
-
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setCategory("");
-      setCookTime("");
-      setServings("");
-      setIngredients([{ amount: "", name: "" }]);
-      setDirections([""]);
-      setImageFile(null);
-      setImagePreview(null);
-
+      if (isEditing) {
+        // Navigate back to the updated recipe.
+        router.push(`/recipes/${initialRecipe.id}`);
+        router.refresh();
+      } else {
+        setSuccess("Recipe saved successfully!");
+        resetForm();
+      }
     } catch (error) {
       console.error("Error saving recipe:", error);
 
@@ -571,7 +653,7 @@ export default function RecipeForm() {
         </button>
       </section>
 
-      {/* Image Upload */}
+      {/* Recipe Image */}
       <section className={styles.formSection}>
         <div className={styles.formSectionHeader}>
           <h2>Recipe Image</h2>
@@ -595,10 +677,10 @@ export default function RecipeForm() {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {imagePreview ? (
+          {displayedImage ? (
             <div className={styles.imagePreviewContainer}>
               <Image
-                src={imagePreview}
+                src={displayedImage}
                 alt="Recipe image preview"
                 width={500}
                 height={300}
@@ -606,7 +688,12 @@ export default function RecipeForm() {
                 className={styles.imagePreview}
               />
 
-              <p>{imageFile?.name}</p>
+              <p>
+                {imageFile?.name ??
+                  (isEditing
+                    ? "Current recipe image"
+                    : "Selected image")}
+              </p>
 
               <button
                 type="button"
@@ -618,13 +705,17 @@ export default function RecipeForm() {
                 Change Image
               </button>
 
-              <button
-                type="button"
-                className={styles.removeImageButton}
-                onClick={removeImage}
-              >
-                Remove Image
-              </button>
+              {imageFile && (
+                <button
+                  type="button"
+                  className={styles.removeImageButton}
+                  onClick={removeImage}
+                >
+                  {isEditing
+                    ? "Keep Original Image"
+                    : "Remove Image"}
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -651,21 +742,21 @@ export default function RecipeForm() {
         </div>
       </section>
 
-      {/* Validation Error */}
+      {/* Validation errors */}
       {error && (
         <p role="alert" className={styles.formError}>
           {error}
         </p>
       )}
 
-      {/* Success Message */}
+      {/* Success message */}
       {success && (
         <p role="status">
           {success}
         </p>
       )}
 
-      {/* Form Actions */}
+      {/* Form actions */}
       <div className={styles.formActions}>
         <button
           type="submit"
@@ -673,7 +764,9 @@ export default function RecipeForm() {
           disabled={isSubmitting}
         >
           {isSubmitting
-            ? "Saving Recipe..."
+            ? "Saving..."
+            : isEditing
+            ? "Save Changes →"
             : "Save Recipe →"}
         </button>
       </div>
