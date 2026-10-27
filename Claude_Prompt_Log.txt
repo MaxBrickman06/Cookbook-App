@@ -69,3 +69,113 @@ add in the screenshots you gave me as well please
 [2026-10-15 11:56 EDT]  branch: updated-demo-2026-10-15
 
 Can you generate me bullet points of what was added in todays session. Arrange them in an order that naturally flows from one to the next so I can show them off in a single concise demo
+
+
+----------------------------------------------------------------------
+[2026-10-26 20:22 EDT]  branch: updated-demo-2026-10-15
+
+(Attachments: Lecture 4 slides 4.Requirements-F26.pdf; project files Cookbook App Design.pdf and 00-overview-collage.png)
+
+Write the specification for your team project: requirements someone else could build and test without asking you.
+
+100 points · CS 3560, Fall 2026
+
+Purpose
+Lecture 4 argued that once a coding agent can write the code, the hard part is saying precisely what the code must do. This assignment is that part, for the project your team is actually building. You write a short requirements specification: what the system is for, what it must do, how well, under what constraints, and how each requirement will be checked. Then you hand part of it to a coding agent and find out what you forgot to say.
+
+Aim for 5–8 pages. A 60-page SRS for a 12-week project is the wrong answer in the other direction (Lecture 4).
+
+Individual work, on your team's project
+This is an individual assignment. Everyone writes their own specification of their own team's project, as one document, and is graded on it alone.
+
+You may talk with your team about what the project is, what is in scope, and which features exist. That is requirements elicitation, and it is encouraged. Write it down in your own words. Do not share or copy the document itself: two specifications with the same text are an academic-integrity matter for both authors.
+Each member owns one feature for Parts 2 and 3, and no two members of a team may own the same one. Agree on it as a team first. Write your feature, and the features your teammates chose, at the top of your document.
+Where you and a teammate disagree about the project, write that down in Open questions (section 8). Finding a disagreement is part of the job. Hiding it is not.
+Part 1 — The specification (70 points)
+Write one document, in Word or any editor that can save a PDF, with these eight sections in this order.
+
+1. Purpose and scope
+The problem, who has it, and the business-level goal in one or two sentences. Then two lists: In scope for this semester, and Out of scope. Out of scope is not optional, because it is where an agent's invented features show up.
+
+2. Stakeholders and users
+Every role that uses or cares about the system (player, admin, family member, the grader, the device it runs on), and what each one needs from it.
+
+3. Context, constraints and assumptions
+The choices already made for you: language, platform, build system, hardware, libraries, licences, deadline, team size. Then the assumptions you are making and the dependencies you rely on. Mark each assumption so a teammate can confirm or correct it.
+
+4. Functional requirements
+At least 8, numbered FR-1, FR-2, … in a table with these columns (the row is an example):
+
+ID	Requirement	Priority	Traces to	Verified by
+FR-3	A malformed row is skipped and logged with its 1-based line number; the import continues	Must	U-2	test: import_skips_malformed_row
+Priority is Must / Should / Could / Won't (this semester).
+Traces to names the user need from section 2, or the goal from section 1, that the requirement serves. If you cannot fill it in, what you have is a preference, not a requirement (Lecture 4).
+Verified by names the check that decides pass or fail: a test name, a manual step, a measurement, or a review. "It works" is not a check.
+5. Non-functional requirements
+At least 4, numbered NFR-1, …, in the same table format. Cover at least three different qualities: performance, reliability, usability, accessibility, security, privacy, portability, maintainability. Each one needs a number, a condition, and a way to measure it. Lecture 4's rewrite of "the app should be fast" is the standard:
+
+95% of searches over a 10,000-row database return in ≤ 200 ms on a lab machine,
+measured with 20 warm runs.
+6. User stories
+At least 4 stories, each with at least two acceptance criteria in Given / When / Then form. At least one criterion per story must cover something going wrong: bad input, a lost connection, a missing file, a second user doing the same thing. Each story lists the FR IDs it covers.
+
+As a  <role>
+I want <capability>
+so that <benefit>                         Covers: FR-2, FR-3
+
+  Given <state>
+  When  <action>
+  Then  <observable outcome>
+7. Traceability matrix
+One table: goal → user need → requirement IDs → user stories → how it is verified. Every FR and NFR appears at least once, and so does every user need from section 2. An empty cell is a finding: either a requirement serves nobody, or a need has no requirement.
+
+8. Open questions
+At least 3 questions you could not answer alone. For each: who can answer it (a teammate, a user, the instructor), and what you assumed in the meantime. Include anything Part 3 turned up that you could not settle yourself.
+
+Before you hand it in: the good-requirement test
+Read every FR and NFR against the table from Lecture 4. Graders will.
+
+Unambiguous — two readers, separately, would build the same thing.
+Verifiable — you have named the check that decides pass or fail.
+Complete — no "and so on", no "etc.", no missing error case.
+Consistent — it does not contradict another requirement.
+Feasible — your team can build it with this stack by December.
+Necessary — if you delete it, someone in section 2 complains.
+Traceable — it has an ID, and something upstream and downstream cites it.
+Part 2 — Your feature, in depth (20 points)
+For the one feature you own, add a section titled "Feature: <name>" containing:
+
+A use case in the format from Lecture 4: actor, precondition, trigger, numbered main flow, at least three alternates (2a, 3a, …) and a postcondition you could write an assertion for. The alternates are where the forgotten requirements are. If a step has no way to go wrong, look again.
+A sequence diagram of that use case, showing the main flow and at least one alternate. If your feature is mostly state, such as a game mode or a connection, a state diagram is fine instead. Mermaid is recommended, as in Lecture 4: write it at mermaid.live, paste the picture into your document, and put the Mermaid text in an appendix. A neat drawing from any other tool is fine too.
+Part 3 — The agent check (10 points)
+This is the in-class activity from the end of Lecture 4, done alone. It is the reason the specification has to be precise.
+
+Finish Part 2 first.
+Open a fresh session of any coding agent (Claude Code, Copilot, Codex, Gemini CLI, Cursor). Give it only the user stories and use case for your feature. Do not give it the repository or the rest of the document. Ask it to implement the feature.
+Read what it produced. You do not need to run it. In an appendix titled "Agent check", record the tool and model, your exact prompt, and a numbered list of every decision it made that your specification did not settle: a field it named, a limit it chose, an error it ignored, behaviour it invented.
+For each item, write one line: fixed (and the requirement ID you added or changed), deliberately left open (and why), or moved to Open questions.
+Fix the specification. Mark every requirement you added or changed because of the agent check with (A) after its ID, for example FR-9 (A), so the grader can see what the agent taught you.
+A list of zero assumptions means the agent was not read closely, not that the specification is perfect. Five to fifteen is typical.
+
+What to submit
+On Canvas: your specification as one Word (.docx) or PDF file, with the Agent check appendix inside it. This is the copy that is graded.
+In your team repository: the same file, committed under your own GitHub account by the same deadline, as docs/requirements/<your-name>.docx or .pdf. Teammates' files sit side by side in that folder, which is where the team will pull the shared specification from. The repository copy is not graded, but it is required.
+If you used AI tools to polish your specification, submit both your original handwritten version(s) and the final polished version.
+Grading
+Item	Points
+1–3. Purpose and scope (with Out of scope), stakeholders, constraints and assumptions	10
+4. Functional requirements: at least 8, each one testable, prioritised, traced, with a named check	20
+5. Non-functional requirements: at least 4, three or more qualities, each with a number, a condition and a measurement	15
+6. User stories: at least 4, Given/When/Then, with failure cases	15
+7–8. Traceability matrix complete; open questions with owners and interim assumptions	10
+Part 2: use case with at least three alternates, and a sequence or state diagram	20
+Part 3: agent check, with the assumptions list, a disposition for each, and the fixes marked (A) in the specification	10
+Total	100
+
+If something goes wrong
+Your team cannot agree on who owns which feature — split a large feature by its alternates (one person takes "save", another "load a corrupted save"), or ask the instructor before you start.
+Mermaid shows an error instead of a diagram — mermaid.live points at the line that does not parse. The Lecture 4 slides have a working sequence diagram to start from.
+Your push to the team repository is rejected — a teammate pushed first. Run git pull, then push again. Never use --force on a shared branch.
+Still stuck: post in the course discussion on Canvas.
+
+I want you to help me do this assignment step by step. chunk the requirements down into a series off bullet points for me to follow one at a time, to make the assignment more digestible. use the lecture slides provided to give examples of what each step should look like and how it should be formatted, as well as exactly what is expected from me. provide exact deliverables and instructions that are only relevant to completing the assignment and earning a high grade.
