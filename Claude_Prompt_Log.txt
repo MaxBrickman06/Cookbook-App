@@ -185,3 +185,8 @@ I want you to help me do this assignment step by step. chunk the requirements do
 (Attachments: Maxwell Brickman - HW4.docx; project files Cookbook App Design.pdf and 00-overview-collage.png)
 
 I want you to open a new branch from the most recent demo and implement what you find in this document.
+
+----------------------------------------------------------------------
+[2026-10-29 16:27 EDT]  branch: updated-demo-2026-10-29
+
+I downloaded the branches zip from the repo and ran the install cookbook file. i am trying to open the app now using the desktop icon and its not working

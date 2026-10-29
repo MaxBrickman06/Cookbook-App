@@ -33,6 +33,26 @@ if (-not (Test-Path (Join-Path $Root 'server.js'))) {
     exit 1
 }
 
+# Opened straight from the ZIP? Windows unpacks it into a temporary folder that it deletes later,
+# which would leave the desktop icon pointing at nothing. Ask for the ZIP to be extracted first.
+$TempRoots = @($env:TEMP, $env:TMP, (Join-Path $env:LOCALAPPDATA 'Temp')) |
+    Where-Object { $_ } | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') + '\' }
+$RootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+$InTemp = $TempRoots | Where-Object { $RootFull.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }
+if ($InTemp -or $RootFull -match '\\Temp\d*_[^\\]*\.zip\\') {
+    Write-Host ''
+    Write-Host '  Cookbook is being run from inside the ZIP file.' -ForegroundColor Red
+    Write-Host '  Windows only unpacked it into a temporary folder, which it deletes later,'
+    Write-Host '  so the desktop icon would stop working.'
+    Write-Host ''
+    Write-Host '  To fix it:'
+    Write-Host '    1. Close this window and the ZIP.'
+    Write-Host '    2. Right-click the ZIP file and choose "Extract All...".'
+    Write-Host '    3. Open the extracted folder and double-click "Install Cookbook.cmd" there.'
+    Write-Host ''
+    exit 1
+}
+
 # Files downloaded as a ZIP from GitHub are marked "from the internet"; clear that so the launcher can run.
 Get-ChildItem -Path $Root -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object { $_.FullName -notmatch '\\\.git\\' } |

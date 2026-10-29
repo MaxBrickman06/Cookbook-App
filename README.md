@@ -5,7 +5,9 @@ CS3560 Project 2
 
 A plain HTML/CSS/JavaScript app with a tiny Node.js server. No frameworks, no build step, no dependencies to install.
 
-**Windows — one click:** double-click **`Install Cookbook.cmd`** once. It puts a **Cookbook** icon on your desktop
+**Windows — one click:** if you downloaded the ZIP from GitHub, extract it first (right-click → *Extract All…*) —
+running the installer from inside the ZIP points the icon at a temporary folder Windows later deletes. Then
+double-click **`Install Cookbook.cmd`** once in the extracted folder. It puts a **Cookbook** icon on your desktop
 (and in the Start menu) and opens the app. From then on, just double-click the icon:
 - the server starts in the background (no console window) and Cookbook opens in its own app window;
 - if Node.js isn't installed, the first launch downloads the official portable Node.js from nodejs.org
