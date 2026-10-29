@@ -10,7 +10,7 @@
  */
 'use strict';
 
-const { parseRecipe, parseIngredientLine } = require('./parser.js');
+const { parseRecipe, parseIngredientLine, formatMinutes } = require('./parser.js');
 
 /* ---------------- what kind of link is this? ---------------- */
 
@@ -155,16 +155,15 @@ function jsonLdRecipe(html) {
 
 const plain = (s) => htmlToText(decodeEntities(String(s || ''))).replace(/\s*\n\s*/g, ' ').trim();
 
-/** "PT1H30M" → "1 hr 30 min" */
-function isoDuration(v) {
+/** "PT1H30M" → 90 */
+function isoMinutes(v) {
   const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:\d+S)?)?$/i.exec(String(v || '').trim());
-  if (!m) return '';
-  const total = (+m[1] || 0) * 1440 + (+m[2] || 0) * 60 + (+m[3] || 0);
-  if (!total) return '';
-  const h = Math.floor(total / 60);
-  const min = total % 60;
-  return [h ? `${h} hr` : '', min ? `${min} min` : ''].filter(Boolean).join(' ');
+  if (!m) return 0;
+  return (+m[1] || 0) * 1440 + (+m[2] || 0) * 60 + (+m[3] || 0);
 }
+
+/** "PT1H30M" → "1 hr 30 min" */
+const isoDuration = (v) => formatMinutes(isoMinutes(v));
 
 function firstImage(img) {
   if (!img) return '';
@@ -228,6 +227,8 @@ function recipeFromJsonLd(node) {
     amounts,
     directions: instructionsToDirections(node.recipeInstructions),
     image: firstImage(node.image),
+    // Overall time: the stated total, otherwise prep + cook added up.
+    time: isoDuration(node.totalTime) || formatMinutes(isoMinutes(node.prepTime) + isoMinutes(node.cookTime)),
   };
 }
 
@@ -383,6 +384,16 @@ async function fromArticle(url, net) {
 
 /* ---------------- main entry ---------------- */
 
+/**
+ * The user-facing messages for the use case's alternate flows (requirements spec, section 8).
+ * `code` lets the app and the tests tell them apart without matching on wording.
+ */
+const MESSAGES = {
+  'invalid-link': 'Enter a full link starting with http',              // 2a
+  unreachable: 'Couldn\'t reach that page',                             // 3a
+  'no-recipe': 'No recipe found on that page',                          // 4a
+};
+
 class ImportError extends Error {
   constructor(message, extra = {}) { super(message); Object.assign(this, extra); }
 }
@@ -393,15 +404,15 @@ class ImportError extends Error {
  */
 async function importFromUrl(rawUrl, net, env = {}) {
   const src = detectSource(rawUrl);
-  if (!src) throw new ImportError('That doesn\'t look like a link. Paste a full address starting with https://');
+  if (!src) throw new ImportError(MESSAGES['invalid-link'], { code: 'invalid-link' });
 
   if (src.platform === 'article') {
     let res;
     try { res = await fromArticle(src.url, net); } catch (e) {
-      throw new ImportError(`Couldn't open that page (${e.message}). Some sites block apps from reading them — copy the page text into Import → Text instead.`);
+      throw new ImportError(`${MESSAGES.unreachable} (${e.message}). Some sites block apps from reading them — copy the page text into Import → Text instead.`, { code: 'unreachable' });
     }
     if (!res.recipe || !res.recipe.ingredients.length) {
-      throw new ImportError('Opened the page, but couldn\'t find a recipe on it.');
+      throw new ImportError(MESSAGES['no-recipe'], { code: 'no-recipe' });
     }
     return { platform: 'article', via: res.via, recipe: { ...res.recipe, source: src.url } };
   }
@@ -412,14 +423,14 @@ async function importFromUrl(rawUrl, net, env = {}) {
     else if (src.platform === 'tiktok') video = await fromTikTok(src, net);
     else video = await fromInstagram(src, net);
   } catch (e) {
-    throw new ImportError(`Couldn't reach ${PLATFORM_NAMES[src.platform]} (${e.message}).`);
+    throw new ImportError(`${MESSAGES.unreachable} — ${PLATFORM_NAMES[src.platform]} didn't answer (${e.message}).`, { code: 'unreachable' });
   }
 
   const caption = (video && video.caption || '').trim();
   if (!caption) {
     throw new ImportError(src.platform === 'instagram'
-      ? 'Instagram didn\'t share this post\'s caption (it often hides it from apps, and private accounts can\'t be read). Open the post, copy the caption and paste it into Import → Text.'
-      : `Couldn't read the description of that ${PLATFORM_NAMES[src.platform]} video.`);
+      ? `${MESSAGES['no-recipe']} — Instagram didn't share this post's caption (it often hides it from apps, and private accounts can't be read). Open the post, copy the caption and paste it into Import → Text.`
+      : `${MESSAGES['no-recipe']} — couldn't read the description of that ${PLATFORM_NAMES[src.platform]} video.`, { code: 'no-recipe' });
   }
 
   const platformName = PLATFORM_NAMES[src.platform];
@@ -441,7 +452,7 @@ async function importFromUrl(rawUrl, net, env = {}) {
   }
 
   if (!recipe || !recipe.ingredients.length) {
-    throw new ImportError(`Found the ${platformName} ${src.platform === 'youtube' ? 'description' : 'caption'}, but there's no recipe written in it.`, { caption });
+    throw new ImportError(`${MESSAGES['no-recipe']} — the ${platformName} ${src.platform === 'youtube' ? 'description' : 'caption'} has no ingredient list in it.`, { caption, code: 'no-recipe' });
   }
 
   const credit = [`Imported from ${platformName}${video.author ? ` · @${video.author.replace(/^@/, '')}` : ''}`,
@@ -455,6 +466,7 @@ async function importFromUrl(rawUrl, net, env = {}) {
       ingredients: recipe.ingredients,
       amounts: recipe.amounts,
       directions: recipe.directions,
+      time: recipe.time || '',
       image: recipe.image || video.image || '',
       source: src.url,
     },
@@ -462,6 +474,6 @@ async function importFromUrl(rawUrl, net, env = {}) {
 }
 
 module.exports = {
-  importFromUrl, ImportError, detectSource, htmlToText, jsonLdRecipe, recipeFromJsonLd,
+  importFromUrl, ImportError, MESSAGES, detectSource, htmlToText, jsonLdRecipe, recipeFromJsonLd,
   instagramEmbedCaption, instagramMetaCaption, cleanCaption, recipeLinks, cleanVideoTitle, isoDuration,
 };

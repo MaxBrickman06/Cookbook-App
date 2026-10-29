@@ -57,6 +57,7 @@ test('recipe website: uses the page\'s built-in recipe data', async () => {
   assert.match(recipe.directions, /\n\nRoast:\n3\. /);
   assert.match(recipe.description, /½ the dishes/);
   assert.match(recipe.description, /Prep time: 15 min · Cook time: 45 min · Total time: 1 hr · Servings: 4/);
+  assert.equal(recipe.time, '1 hr');
   assert.equal(recipe.image, 'https://cdn.example.com/lc-4x3.jpg');
   assert.equal(recipe.source, 'https://simplyweeknight.example/lemon-chicken');
 });
@@ -126,7 +127,8 @@ test('TikTok short link: resolves it, then reads the caption from oEmbed', async
 test('TikTok caption without a recipe gives a clear message and the caption', async () => {
   const net = fakeNet({ 'https://www.tiktok.com/oembed?url=': JSON.stringify({ title: 'POV: you finally nailed the sourdough 😭 #bread', author_unique_id: 'x' }) });
   await assert.rejects(importFromUrl('https://www.tiktok.com/@x/video/1', net), (e) => {
-    assert.match(e.message, /no recipe written in it/);
+    assert.equal(e.code, 'no-recipe');
+    assert.match(e.message, /^No recipe found on that page/);
     assert.match(e.caption, /sourdough/);
     return true;
   });
@@ -155,8 +157,23 @@ test('Instagram with no caption available explains what to do instead', async ()
 });
 
 test('bad links', async () => {
-  await assert.rejects(importFromUrl('hello', fakeNet({})), /doesn't look like a link/);
-  await assert.rejects(importFromUrl('https://blocked.example/x', fakeNet({})), /Couldn't open that page \(the site answered 404\)/);
+  await assert.rejects(importFromUrl('hello', fakeNet({})), { code: 'invalid-link', message: /^Enter a full link starting with http/ });
+  await assert.rejects(importFromUrl('www.example.com/recipe', fakeNet({})), { code: 'invalid-link' });
+  await assert.rejects(importFromUrl('ftp://example.com/recipe', fakeNet({})), { code: 'invalid-link' });
+  await assert.rejects(importFromUrl('https://blocked.example/x', fakeNet({})), { code: 'unreachable', message: /^Couldn't reach that page \(the site answered 404\)/ });
+});
+
+test('use case 4a: a page with no ingredient list is refused with "No recipe found on that page"', async () => {
+  const net = fakeNet({ 'https://blog.example/about': '<html><body><h1>About me</h1><p>I love cooking for my family.</p></body></html>' });
+  await assert.rejects(importFromUrl('https://blog.example/about', net), { code: 'no-recipe', message: 'No recipe found on that page' });
+});
+
+test('use case 4b: a page with ingredients but no directions still imports, with directions empty', async () => {
+  const html = '<html><body><h1>Trail Mix</h1><h2>Ingredients</h2><ul><li>1 cup peanuts</li><li>1 cup raisins</li><li>1/2 cup chocolate chips</li></ul></body></html>';
+  const { recipe } = await importFromUrl('https://blog.example/trail-mix', fakeNet({ 'https://blog.example/trail-mix': html }));
+  assert.equal(recipe.name, 'Trail Mix');
+  assert.equal(recipe.ingredients.length, 3);
+  assert.equal(recipe.directions, '');
 });
 
 test('real video description (from the design sketch screenshot) imports exactly', async () => {

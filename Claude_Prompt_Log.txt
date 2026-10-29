@@ -179,3 +179,9 @@ Your push to the team repository is rejected — a teammate pushed first. Run gi
 Still stuck: post in the course discussion on Canvas.
 
 I want you to help me do this assignment step by step. chunk the requirements down into a series off bullet points for me to follow one at a time, to make the assignment more digestible. use the lecture slides provided to give examples of what each step should look like and how it should be formatted, as well as exactly what is expected from me. provide exact deliverables and instructions that are only relevant to completing the assignment and earning a high grade.
+
+----------------------------------------------------------------------
+[2026-10-29 16:02 EDT]  branch: updated-demo-2026-10-29 (from updated-demo-2026-10-15)
+(Attachments: Maxwell Brickman - HW4.docx; project files Cookbook App Design.pdf and 00-overview-collage.png)
+
+I want you to open a new branch from the most recent demo and implement what you find in this document.

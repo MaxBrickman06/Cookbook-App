@@ -1,8 +1,8 @@
 /* Cookbook service worker — makes the app installable (so it can receive shared links on
  * Android) and keeps the app shell working offline. Always tries the network first, so
  * changes to the app show up right away. */
-const CACHE = 'cookbook-shell-v1';
-const SHELL = ['/', '/index.html', '/app.js', '/parser.js', '/styles.css', '/manifest.webmanifest', '/icons/icon-192.png'];
+const CACHE = 'cookbook-shell-v2';
+const SHELL = ['/', '/index.html', '/app.js', '/parser.js', '/cookbook.js', '/styles.css', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

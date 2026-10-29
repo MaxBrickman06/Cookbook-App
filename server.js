@@ -25,7 +25,7 @@ const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : 'localhost');
 
 const MAX_PAGE_BYTES = 4 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 10000;   // use case step 3: the whole download (redirects included) gets 10 s
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
   Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
@@ -62,12 +62,21 @@ async function assertPublic(url) {
 /** fetch() that re-checks every redirect hop, times out, and caps the download size. */
 async function safeFetch(url, { headers = {}, maxBytes = MAX_PAGE_BYTES } = {}) {
   let current = url;
+  const deadline = AbortSignal.timeout(TIMEOUT_MS);   // one clock for every hop and the body
+  try {
+    return await fetchHops();
+  } catch (e) {
+    if (deadline.aborted || e.name === 'TimeoutError') throw new Error(`it took longer than ${TIMEOUT_MS / 1000} seconds`);
+    throw e;
+  }
+
+  async function fetchHops() {
   for (let hop = 0; hop < 6; hop++) {
     await assertPublic(current);
     const res = await fetch(current, {
       headers: { ...BROWSER_HEADERS, ...headers },
       redirect: 'manual',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: deadline,
     });
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
       current = new URL(res.headers.get('location'), current).href;
@@ -86,6 +95,7 @@ async function safeFetch(url, { headers = {}, maxBytes = MAX_PAGE_BYTES } = {}) 
     return { url: current, type: res.headers.get('content-type') || '', body: Buffer.concat(chunks) };
   }
   throw new Error('too many redirects');
+  }
 }
 
 const realNet = {
@@ -116,7 +126,7 @@ const TYPES = {
 };
 
 /** Only the browser app is served — never server code, tests or git files. */
-const PUBLIC_FILES = new Set(['index.html', 'app.js', 'parser.js', 'styles.css', 'manifest.webmanifest', 'sw.js']);
+const PUBLIC_FILES = new Set(['index.html', 'app.js', 'parser.js', 'cookbook.js', 'styles.css', 'manifest.webmanifest', 'sw.js']);
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -140,6 +150,7 @@ async function handleImport(req, res, query) {
     send(res, known ? 422 : 500, {
       ok: false,
       error: known ? e.message : 'Something went wrong while reading that link.',
+      code: known ? e.code || '' : 'error',
       caption: e.caption || '',
     });
   }

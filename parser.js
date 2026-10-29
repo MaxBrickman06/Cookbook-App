@@ -240,6 +240,45 @@
     return [{ name: sentenceCase(s), amount }];
   }
 
+  /* ---------------- cooking time ---------------- */
+
+  /**
+   * "1 hr 30 min" → 90, "45 minutes" → 45, "1 1/2 hours" → 90, "20-25 min" → 25 (the upper end),
+   * a bare "40" → 40. Returns 0 when no time can be read.
+   */
+  function parseMinutes(text) {
+    const s = asciiFractions(String(text || '')).toLowerCase();
+    if (/^\s*\d+(?:\.\d+)?\s*$/.test(s)) return Math.round(Number(s));
+    const re = /(\d+(?:\.\d+)?)(?:\s+(\d+)\/(\d+)|\/(\d+))?(?:\s*(?:-|–|to)\s*(\d+(?:\.\d+)?))?\s*(days?|d\b|hours?|hrs?|h\b|minutes?|mins?|m\b)/g;
+    let total = 0;
+    let m;
+    while ((m = re.exec(s))) {
+      let n = Number(m[1]);
+      if (m[2]) n += Number(m[2]) / Number(m[3]);
+      if (m[4]) n /= Number(m[4]);
+      if (m[5]) n = Math.max(n, Number(m[5]));
+      const unit = m[6][0];
+      total += unit === 'd' ? n * 1440 : unit === 'h' ? n * 60 : n;
+    }
+    return Math.round(total);
+  }
+
+  /** 90 → "1 hr 30 min", 45 → "45 min". */
+  function formatMinutes(min) {
+    if (!min) return '';
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return [h ? `${h} hr` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
+  }
+
+  /** Overall time from recipe-card details: the stated total, otherwise prep + cook + bake + … added up. */
+  function totalTimeFrom(meta) {
+    const times = meta.filter((m) => / time: /i.test(m));
+    const total = times.find((m) => /^total time:/i.test(m));
+    if (total) return formatMinutes(parseMinutes(total.split(':').slice(1).join(':')));
+    return formatMinutes(times.reduce((sum, m) => sum + parseMinutes(m.split(':').slice(1).join(':')), 0));
+  }
+
   /* ---------------- whole recipe ---------------- */
 
   const META_LABEL = String.raw`prep(?:aration)?|cook(?:ing)?|total|bake|baking|chill(?:ing)?|rest(?:ing)?|inactive|active|marinat(?:e|ing)|rise|rising|freez(?:e|ing)|additional`;
@@ -566,10 +605,10 @@
       notes.length ? `Notes:\n${notes.join('\n')}` : '',
     ].filter(Boolean).join('\n\n');
 
-    return { name, description, ingredients, amounts, directions };
+    return { name, description, ingredients, amounts, directions, time: totalTimeFrom(meta) };
   }
 
-  const api = { parseRecipe, parseIngredientLine, expandInline };
+  const api = { parseRecipe, parseIngredientLine, expandInline, parseMinutes, formatMinutes, totalTimeFrom };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RecipeParser = api;
 })(typeof window !== 'undefined' ? window : globalThis);

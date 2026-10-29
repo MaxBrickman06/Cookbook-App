@@ -27,6 +27,7 @@ function seedData() {
         ingredients: ['Potatoes', 'Parmesan cheese', 'Mozzarella', 'Garlic powder', 'Eggs', 'Cornstarch'],
         amounts: { potatoes: '2 lb', 'parmesan cheese': '1/2 cup, grated', mozzarella: '1 cup, cubed', 'garlic powder': '1 tsp', eggs: '1', cornstarch: '1/4 cup' },
         directions: '1. Boil and mash the potatoes, then let them cool.\n2. Mix in the parmesan, garlic powder, egg and cornstarch.\n3. Wrap a spoonful around a cube of mozzarella and roll into a ball.\n4. Fry until golden and crispy.',
+        time: '45 min',
         favorite: true,
         useFridge: true,
       },
@@ -36,6 +37,7 @@ function seedData() {
         description: 'Fluffy weekend pancakes.',
         ingredients: ['Flour', 'Sugar', 'Eggs', 'Milk', 'Butter', 'Baking powder'],
         amounts: { flour: '1 1/2 cups', sugar: '2 tbsp', eggs: '1', milk: '1 1/4 cups', butter: '3 tbsp, melted', 'baking powder': '1 tbsp' },
+        time: '20 min',
         directions: '1. Whisk the flour, sugar and baking powder.\n2. Whisk the milk, egg and melted butter in another bowl.\n3. Combine until just mixed — a few lumps are fine.\n4. Cook on a hot buttered pan until bubbles form, then flip.',
         favorite: false,
         useFridge: true,
@@ -46,6 +48,7 @@ function seedData() {
         description: 'Easy spicy side dish.',
         ingredients: ['Potatoes', 'Olive oil', 'Cajun seasoning'],
         amounts: { potatoes: '1 1/2 lb, halved', 'olive oil': '2 tbsp', 'cajun seasoning': '1 tbsp' },
+        time: '40 min',
         directions: '1. Heat the oven to 425°F.\n2. Toss the halved potatoes in oil and Cajun seasoning.\n3. Roast for about 35 minutes, turning once.',
         favorite: false,
         useFridge: true,
@@ -64,6 +67,7 @@ function upgradeRecipe(r) {
     ...r,
     description: r.description || '',
     directions: r.directions || '',
+    time: r.time || '',
     favorite: Boolean(r.favorite),
     amounts: r.amounts || {},
     image: r.image || '',
@@ -100,7 +104,6 @@ function save() {
 const ui = {
   view: 'library',
   recipeId: null,
-  targetListId: null,
   focusKey: null,
   link: { status: 'idle' },   // link import: idle | loading | error
   importText: '',
@@ -108,8 +111,14 @@ const ui = {
   draft: null,                // the copy being edited; only written to the recipe on Save
   draftOriginal: '',          // snapshot to tell whether anything changed
   isNewRecipe: false,         // a new recipe isn't added to the library until it's saved
-  filter: { q: '', scope: 'all', favorites: false, canMake: false },
+  filter: { q: '', scope: 'all', favorites: false, canMake: false, missing: false, maxTime: 0 },
+  editorNotice: null,         // { kind: 'warn' | 'error', text } shown at the top of the edit form
+  listPicker: null,           // "Add to List" window: { names: [...], selected: [listIds], newList: bool, newName }
+  importDialog: null,         // Import window on the library page: { mode: 'menu' | 'url' | 'text' }
 };
+
+const NO_FILTERS = () => ({ q: '', scope: ui.filter ? ui.filter.scope : 'all', favorites: false, canMake: false, missing: false, maxTime: 0 });
+const C = window.Cookbook;   // shared rules (cookbook.js) — also checked by the tests
 
 /* Link import needs server.js; opened as a plain file it can't fetch other sites. */
 const SERVER_MODE = /^https?:$/.test(location.protocol);
@@ -118,7 +127,7 @@ const SERVER_MODE = /^https?:$/.test(location.protocol);
 
 const findRecipe = (id) => state.recipes.find((r) => r.id === id);
 const findList = (id) => state.lists.find((l) => l.id === id);
-const inFridge = (name) => state.fridge.some((f) => norm(f) === norm(name));
+const inFridge = (name) => C.inFridge(state.fridge, name);
 const amountOf = (recipe, name) => (recipe.amounts || {})[norm(name)] || '';
 
 /** Library order: favorites first, otherwise the order recipes were added. */
@@ -161,27 +170,17 @@ function starButton(r, size = 'small') {
     </button>`;
 }
 
-/** Ingredients for display: missing first (when fridge check is on). */
+/**
+ * Ingredients for display, red first: need (not in fridge or any list), then listed (on a shopping list),
+ * then have (in the fridge). `missing` is true for need and listed.
+ */
 function orderedIngredients(recipe) {
-  if (!recipe.useFridge) return recipe.ingredients.map((name) => ({ name, missing: false }));
-  const missing = [];
-  const have = [];
-  recipe.ingredients.forEach((name) => {
-    (inFridge(name) ? have : missing).push({ name, missing: !inFridge(name) });
-  });
-  return [...missing, ...have];
+  return C.ingredientRows(recipe, state.fridge, state.lists)
+    .map((row) => ({ ...row, missing: row.state === 'need' || row.state === 'listed' }));
 }
 
-function missingFor(recipe) {
-  return recipe.useFridge ? recipe.ingredients.filter((n) => !inFridge(n)) : [];
-}
-
-/** Names of lists that already have this item (not yet checked off). */
-function listsContaining(name) {
-  return state.lists
-    .filter((l) => l.items.some((i) => !i.done && norm(i.name) === norm(name)))
-    .map((l) => l.name);
-}
+/** Everything still to buy for this recipe (red and yellow ingredients). */
+const missingFor = (recipe) => C.neededFor(recipe, state.fridge);
 
 function addToFridge(names) {
   let added = 0;
@@ -191,24 +190,34 @@ function addToFridge(names) {
   return added;
 }
 
-function addToList(listId, names, recipe) {
-  let list = findList(listId);
-  if (!list) {
-    list = { id: uid(), name: recipe ? `For ${recipe.name || 'recipe'}` : 'New list', items: [] };
+/** "Add to List" window: open it for these ingredients (all the recipe needs, or one row's item). */
+function openListPicker(names) {
+  ui.listPicker = {
+    names,
+    selected: state.lists.length ? [state.lists[0].id] : [],
+    newList: !state.lists.length,
+    newName: '',
+  };
+  render();
+}
+
+/** Confirm in the "Add to List" window: each chosen list gets every item it doesn't already have (FR-4). */
+function confirmListPicker(recipe) {
+  const p = ui.listPicker;
+  if (!p) return;
+  const ids = [...p.selected];
+  if (p.newList) {
+    const list = { id: uid(), name: p.newName.trim() || `For ${(recipe && recipe.name) || 'recipe'}`, items: [] };
     state.lists.push(list);
-    ui.targetListId = list.id;
+    ids.push(list.id);
   }
-  let added = 0;
-  names.forEach((n) => {
-    if (!list.items.some((i) => !i.done && norm(i.name) === norm(n))) {
-      list.items.push({ name: n, done: false });
-      added++;
-    }
-  });
+  if (!ids.length) { toast('Pick at least one list'); return; }
+  const added = C.addToLists(state.lists, ids, p.names);
   save();
-  toast(added
-    ? `Added ${plural(added, 'item')} to “${list.name}”`
-    : `Already on “${list.name}”`);
+  ui.listPicker = null;
+  render();
+  const parts = ids.map((id) => `${added[id] ? plural(added[id], 'item') : 'nothing new'} → “${findList(id).name}”`);
+  toast(parts.join(' · '));
 }
 
 /* ---------------- rendering ---------------- */
@@ -228,7 +237,8 @@ function render() {
     lists: renderLists,
     import: renderImport,
   };
-  app.innerHTML = (views[ui.view] || renderLibrary)();
+  app.innerHTML = (views[ui.view] || renderLibrary)() + renderModal();
+  document.body.classList.toggle('modal-open', Boolean(app.querySelector('.modal')));
 
   app.querySelectorAll('textarea[data-autosize]').forEach(autosize);
   syncTopbarHeight();
@@ -255,37 +265,35 @@ function autosize(el) {
 
 /* ---------------- library search & filters ---------------- */
 
-/** "eggs, milk and butter" → ['eggs', 'milk', 'butter'] — every term has to match. */
-function searchTerms(q) {
-  return String(q || '').split(/,|;|\+|&|\band\b/i).map(norm).filter(Boolean);
-}
+/* Search rules live in cookbook.js (FR-2): every comma-separated term must match, any letter case. */
+const searchTerms = C.searchTerms;
+const ingredientMatches = (name, terms) => terms.some((t) => C.termMatches(name, t));
+const canMakeNow = (r) => C.isComplete(r, state.fridge);
+/** Recipes the fridge check applies to and that are short of something. */
+const isIncomplete = (r) => r.useFridge && r.ingredients.length > 0 && !canMakeNow(r);
 
-/** "tomatoes" also finds "Tomato", "eggs" finds "Egg". */
-function termMatches(text, term) {
-  const t = norm(text);
-  if (t.includes(term)) return true;
-  const singular = term.length > 3 ? term.replace(/(es|s)$/, '') : term;
-  return singular !== term && t.includes(singular);
-}
-
-const ingredientMatches = (name, terms) => terms.some((t) => termMatches(name, t));
-const canMakeNow = (r) => r.ingredients.length > 0 && r.ingredients.every(inFridge);
+const TIME_FILTERS = [[0, 'Any time'], [15, '≤ 15 min'], [30, '≤ 30 min'], [60, '≤ 1 hr'], [120, '≤ 2 hr']];
 
 function filteredRecipes() {
-  const { q, scope, favorites, canMake } = ui.filter;
+  const { q, scope, favorites, canMake, missing, maxTime } = ui.filter;
   const terms = searchTerms(q);
-  return sortedRecipes().filter((r) => {
+  const list = sortedRecipes().filter((r) => {
     if (favorites && !r.favorite) return false;
     if (canMake && !canMakeNow(r)) return false;
-    return terms.every((t) =>
-      (scope !== 'ingredients' && termMatches(r.name, t)) ||
-      (scope !== 'name' && r.ingredients.some((i) => termMatches(i, t))));
+    if (missing && !isIncomplete(r)) return false;
+    if (maxTime) {
+      const min = C.recipeMinutes(r);
+      if (!min || min > maxTime) return false;
+    }
+    return C.matchesSearch(r, terms, scope);
   });
+  // While searching, recipes you can make right now come first (US-1).
+  return terms.length ? C.orderResults(list, state.fridge) : list;
 }
 
 const filtersActive = () => {
   const f = ui.filter;
-  return Boolean(f.q.trim() || f.favorites || f.canMake);
+  return Boolean(f.q.trim() || f.favorites || f.canMake || f.missing || f.maxTime);
 };
 
 function recipeCard(r, terms) {
@@ -295,21 +303,24 @@ function recipeCard(r, terms) {
   if (!r.useFridge) status = '<span class="tag">fridge check off</span>';
   else if (!r.ingredients.length) status = '<span class="tag">no ingredients</span>';
   else if (missing) status = `<span class="tag need">${missing} missing</span>`;
-  else status = '<span class="tag have">ready to cook</span>';
+  else status = '<span class="tag ready">ready to cook</span>';
   const highlight = ui.filter.scope !== 'name' && terms.length;
+  const alert = isIncomplete(r)
+    ? '<span class="incomplete-mark" title="Some ingredients aren\'t in your fridge" aria-label="Incomplete">!</span>'
+    : '';
 
   return `
       <article class="recipe-card ${r.favorite ? 'fav' : ''}">
         <div class="card-top">
-          <h3>${esc(r.name || 'Untitled recipe')}</h3>
+          <h3>${alert}${esc(r.name || 'Untitled recipe')}</h3>
           <button class="btn ghost small" data-action="open-recipe" data-id="${r.id}">Open</button>
         </div>
         ${recipeThumb(r)}
-        <div class="card-meta">${status}<span class="tag">${plural(r.ingredients.length, 'ingredient')}</span></div>
+        <div class="card-meta">${status}<span class="tag">${plural(r.ingredients.length, 'ingredient')}</span>${r.time.trim() ? `<span class="tag">⏱ ${esc(r.time.trim())}</span>` : ''}</div>
         ${r.description.trim() ? `<p class="card-desc">${esc(r.description.trim())}</p>` : ''}
         ${ings.length
           ? `<ul class="mini-ings">${ings.map((i) => {
-              const cls = [i.missing ? 'missing' : '', highlight && ingredientMatches(i.name, terms) ? 'match' : ''].join(' ').trim();
+              const cls = [i.state === 'need' ? 'missing' : '', i.state === 'listed' ? 'listed' : '', highlight && ingredientMatches(i.name, terms) ? 'match' : ''].join(' ').trim();
               return `<li class="${cls}">${esc(i.name)}</li>`;
             }).join('')}</ul>`
           : ''}
@@ -326,7 +337,7 @@ function renderLibraryResults() {
     ? `<p class="results-count">Showing ${list.length} of ${plural(total, 'recipe')} · <button class="link-btn" data-action="filter-clear">Clear search &amp; filters</button></p>`
     : '';
   if (!list.length) {
-    return `${count}<div class="empty">No recipes match.${ui.filter.canMake ? ' Nothing can be made with only what\'s in your fridge.' : ''}</div>`;
+    return `${count}<div class="empty">No recipes match.${ui.filter.canMake ? ' Nothing can be made with only what\'s in your fridge.' : ''}${ui.filter.maxTime ? ' Recipes without an estimated time are hidden by the time filter.' : ''}</div>`;
   }
   return `${count}<div class="recipe-grid">${list.map((r) => recipeCard(r, terms)).join('')}</div>`;
 }
@@ -347,9 +358,12 @@ function renderLibrary() {
     <div class="view-head">
       <div>
         <h2>Recipe Library</h2>
-        <p class="sub">${plural(state.recipes.length, 'recipe')}${favCount ? ` · ${favCount} ★ favorite${favCount === 1 ? '' : 's'} pinned to the top` : ''} · red ingredients aren't in your fridge</p>
+        <p class="sub">${plural(state.recipes.length, 'recipe')}${favCount ? ` · ${favCount} ★ favorite${favCount === 1 ? '' : 's'} pinned to the top` : ''} · red ingredients aren't in your fridge, yellow ones are on a list</p>
       </div>
-      <button class="btn" data-action="new-recipe">+ New recipe</button>
+      <span class="toolbar-right">
+        <button class="btn ghost" data-action="import-open">⤓ Import</button>
+        <button class="btn" data-action="new-recipe">+ New recipe</button>
+      </span>
     </div>
 
     ${state.recipes.length ? `
@@ -367,6 +381,11 @@ function renderLibrary() {
         <button class="chip-toggle ${f.favorites ? 'on' : ''}" data-action="filter-toggle" data-key="favorites" aria-pressed="${f.favorites}">★ Favorites only</button>
         <button class="chip-toggle ${f.canMake ? 'on' : ''}" data-action="filter-toggle" data-key="canMake" aria-pressed="${f.canMake}"
                 title="Only recipes where every ingredient is in your fridge">Can make now</button>
+        <button class="chip-toggle ${f.missing ? 'on' : ''}" data-action="filter-toggle" data-key="missing" aria-pressed="${f.missing}"
+                title="Only recipes that are missing something from your fridge">! Missing ingredients</button>
+        <select class="chip-select ${f.maxTime ? 'on' : ''}" data-action="filter-time" aria-label="Time to make">
+          ${TIME_FILTERS.map(([v, label]) => `<option value="${v}" ${f.maxTime === v ? 'selected' : ''}>⏱ ${label}</option>`).join('')}
+        </select>
       </div>
       <p class="search-hint">Separate ingredients with commas to find recipes that use all of them.</p>
     </div>` : ''}
@@ -374,11 +393,6 @@ function renderLibrary() {
     <div id="library-results">${renderLibraryResults()}</div>`;
 }
 
-function listOptions(selected) {
-  const opts = state.lists.map((l) =>
-    `<option value="${l.id}" ${l.id === selected ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
-  return `${opts}<option value="__new" ${selected === '__new' ? 'selected' : ''}>+ New list…</option>`;
-}
 
 /* ---------------- recipe page: read-only view ---------------- */
 
@@ -425,39 +439,42 @@ function renderRecipe() {
   return renderRecipeView(r);
 }
 
-function renderRecipeView(r) {
-  if (!findList(ui.targetListId)) ui.targetListId = state.lists[0] ? state.lists[0].id : '__new';
+const STATE_TAGS = {
+  need: '<span class="tag need">need</span>',
+  listed: '<span class="tag listed">on a list</span>',
+  have: '<span class="tag have">have</span>',
+  plain: '',
+};
 
+function renderRecipeView(r) {
   const ings = orderedIngredients(r);
   const missing = ings.filter((i) => i.missing);
+  const need = missing.filter((i) => i.state === 'need').length;
+  const listed = missing.length - need;
   const hasDesc = Boolean(r.description.trim());
   const hasDirections = Boolean(r.directions.trim());
 
   const rows = ings.map((i) => {
-    const onLists = i.missing ? listsContaining(i.name) : [];
     const amount = amountOf(r, i.name);
-    let tag = '';
-    if (r.useFridge) tag = i.missing ? '<span class="tag need">need</span>' : '<span class="tag have">have</span>';
-    const listTag = onLists.length ? `<span class="tag info">on ${esc(onLists.join(', '))}</span>` : '';
+    const listTag = i.state === 'listed' ? `<span class="on-lists">${esc(i.lists.join(', '))}</span>` : '';
     const actions = i.missing ? `
         <span class="row-actions">
-          <button class="btn ghost small" data-action="add-missing-one" data-name="${esc(i.name)}" title="Add to the selected shopping list">+ List</button>
+          <button class="btn ghost small" data-action="add-missing-one" data-name="${esc(i.name)}" title="Add to a shopping list">+ List</button>
           <button class="btn ghost small" data-action="ingredient-to-fridge" data-name="${esc(i.name)}" title="I have this now">Got it</button>
         </span>` : '';
     return `
-      <li class="${i.missing ? 'missing' : ''}">
+      <li class="ing-${i.state}">
         <span class="ing-name">${esc(i.name)}${amount ? ` <span class="ing-amount">${esc(amount)}</span>` : ''}</span>
-        ${tag}${listTag}${actions}
+        ${listTag}${STATE_TAGS[i.state]}${actions}
       </li>`;
   }).join('');
 
+  // The "Add to List" button only shows when something is yellow or red (US-1).
   const missingBar = missing.length ? `
     <div class="missing-bar">
-      <strong>${missing.length} missing</strong>
+      <strong>${[need ? `${need} needed` : '', listed ? `<span class="listed-count">${listed} on a list</span>` : ''].filter(Boolean).join(' · ')}</strong>
       <span class="spacer"></span>
-      <span>Add to</span>
-      <select data-action="target-list" aria-label="Shopping list">${listOptions(ui.targetListId)}</select>
-      <button class="btn small" data-action="add-missing-all">Add all missing</button>
+      <button class="btn small" data-action="add-missing-all">+ Add to List</button>
     </div>` : '';
 
   const nothingYet = !hasDesc && !ings.length && !hasDirections && !r.image;
@@ -479,6 +496,7 @@ function renderRecipeView(r) {
 
     <header class="recipe-head">
       <h1 class="recipe-title">${esc(r.name || 'Untitled recipe')}</h1>
+      ${r.time.trim() ? `<p class="recipe-time">⏱ ${esc(r.time.trim())}</p>` : ''}
       ${sourceLine(r)}
     </header>
 
@@ -486,7 +504,8 @@ function renderRecipeView(r) {
 
     ${ings.length ? `
     <section class="panel">
-      <div class="panel-head"><h3>Ingredients <span class="sub">(${ings.length})</span></h3></div>
+      <div class="panel-head"><h3>Ingredients <span class="sub">(${ings.length})</span></h3>
+        ${r.useFridge ? '<span class="legend"><span class="dot need"></span>need <span class="dot listed"></span>on a list <span class="dot have"></span>have</span>' : ''}</div>
       ${missingBar}
       <ul class="ing-list view">${rows}</ul>
     </section>` : ''}
@@ -497,6 +516,12 @@ function renderRecipeView(r) {
       <div class="directions-view">${directionsHtml(r.directions)}</div>
     </section>` : ''}
 
+    ${hasDirections || !ings.length ? '' : `
+    <section class="panel">
+      <div class="panel-head"><h3>Directions</h3></div>
+      <p class="sub" style="margin:0">No directions yet — press ✎ Edit to add them.</p>
+    </section>`}
+
     ${nothingYet ? `
     <div class="empty">Nothing added to this recipe yet.
       <div style="margin-top:10px"><button class="btn" data-action="edit-recipe">✎ Add details</button></div>
@@ -505,15 +530,21 @@ function renderRecipeView(r) {
 
 /* ---------------- recipe page: edit mode ---------------- */
 
-const EDIT_FIELDS = ['name', 'description', 'directions', 'ingredients', 'amounts', 'image', 'useFridge'];
+const EDIT_FIELDS = ['name', 'description', 'time', 'directions', 'ingredients', 'amounts', 'image', 'useFridge', 'source'];
 const editableCopy = (r) => JSON.parse(JSON.stringify(EDIT_FIELDS.reduce((o, k) => { o[k] = r[k]; return o; }, {})));
 const draftDirty = () => Boolean(ui.editing && ui.draft && JSON.stringify(ui.draft) !== ui.draftOriginal);
 
-function startEditing(recipe, isNew = false) {
+/**
+ * isNew: the recipe isn't in the library yet and is only added on Save.
+ * imported: the form was pre-filled by an import, so Cancel can close it without asking (use case 6a).
+ */
+function startEditing(recipe, isNew = false, { imported = false, notice = null } = {}) {
   ui.draft = editableCopy(recipe);
-  ui.draftOriginal = isNew ? '' : JSON.stringify(ui.draft);
+  ui.draftOriginal = isNew && !imported ? '' : JSON.stringify(ui.draft);
   ui.isNewRecipe = isNew;
+  ui.isImport = imported;
   ui.editing = true;
+  ui.editorNotice = notice;
 }
 
 function stopEditing() {
@@ -521,6 +552,8 @@ function stopEditing() {
   ui.draft = null;
   ui.draftOriginal = '';
   ui.isNewRecipe = false;
+  ui.isImport = false;
+  ui.editorNotice = null;
 }
 
 /** Ask before throwing away unsaved edits. Returns true when it's OK to leave the editor. */
@@ -533,7 +566,20 @@ function confirmLeaveEditor() {
 
 function saveDraft() {
   const d = ui.draft;
-  d.name = d.name.trim() || 'Untitled recipe';
+
+  // FR-1: a recipe needs a name of 1–100 characters.
+  const check = C.checkRecipeName(d);
+  if (check.status !== 'ok') {
+    if (check.status === 'filled') d.name = check.name;
+    ui.editorNotice = { kind: check.status === 'filled' ? 'warn' : 'error', text: check.message, field: 'name' };
+    ui.focusKey = 'recipe-name';
+    render();
+    window.scrollTo(0, 0);
+    return false;
+  }
+  d.name = check.name;
+  d.time = String(d.time || '').trim();
+
   let recipe = findRecipe(ui.recipeId);
   let before = null;
   if (ui.isNewRecipe || !recipe) {
@@ -550,10 +596,11 @@ function saveDraft() {
     toast('Couldn\'t save — browser storage is full. Try a smaller photo or delete an old recipe.');
     return false;
   }
+  const wasNew = ui.isNewRecipe;
   stopEditing();
   render();
   window.scrollTo(0, 0);
-  toast('Changes saved');
+  toast(wasNew ? `“${recipe.name}” added to your library` : 'Changes saved');
   return true;
 }
 
@@ -576,16 +623,22 @@ function renderRecipeEditor(d) {
 
   return `
     <div class="toolbar editing-bar">
-      <span class="editing-label">${ui.isNewRecipe ? 'New recipe' : 'Editing'}</span>
+      <span class="editing-label">${ui.isNewRecipe ? (ui.isImport ? 'Review import' : 'New recipe') : 'Editing'}</span>
       <span class="toolbar-right">${actions}</span>
     </div>
+
+    ${ui.editorNotice ? `<div class="notice ${ui.editorNotice.kind}" role="alert">${esc(ui.editorNotice.text)}</div>` : ''}
 
     ${renderPhotoPanel(d)}
 
     <section class="panel">
       <label class="field-label" for="recipe-name">Recipe name</label>
-      <input type="text" id="recipe-name" class="title-input" data-bind="recipe-name" data-focus="recipe-name"
-             value="${esc(d.name)}" placeholder="Name this dish">
+      <input type="text" id="recipe-name" class="title-input ${ui.editorNotice && ui.editorNotice.field === 'name' ? 'invalid' : ''}"
+             data-bind="recipe-name" data-focus="recipe-name" maxlength="${C.NAME_MAX}" required
+             value="${esc(d.name)}" placeholder="Name this dish (required)">
+      <label class="field-label" for="recipe-time">Estimated time</label>
+      <input type="text" id="recipe-time" class="time-input" data-bind="recipe-time" autocomplete="off"
+             value="${esc(d.time || '')}" placeholder="e.g. 45 min or 1 hr 15 min">
       <label class="field-label" for="recipe-desc">Description</label>
       <textarea id="recipe-desc" data-bind="recipe-desc" data-autosize
                 placeholder="What is it, any notes… (optional)">${esc(d.description)}</textarea>
@@ -609,7 +662,7 @@ function renderRecipeEditor(d) {
 
     <section class="panel">
       <div class="panel-head"><h3>Directions</h3></div>
-      <textarea id="recipe-directions" class="directions" data-bind="recipe-directions" data-autosize
+      <textarea id="recipe-directions" class="directions ${ui.editorNotice && ui.editorNotice.field === 'directions' ? 'invalid' : ''}" data-bind="recipe-directions" data-autosize
                 aria-label="Directions"
                 placeholder="1. Preheat the oven…&#10;2. Mix the dry ingredients…">${esc(d.directions)}</textarea>
       <p class="sub">Start lines with 1. 2. 3. to show them as numbered steps.</p>
@@ -763,21 +816,38 @@ function platformOf(url) {
   return 'website';
 }
 
-function renderLinkPanel() {
-  const { status, message, caption, url } = ui.link;
-  const loading = status === 'loading';
-  const bookmarklet = `javascript:void(window.open('${location.origin}/?share-url='+encodeURIComponent(location.href)))`;
-
-  let statusBox = '';
-  if (loading) {
-    statusBox = `<div class="link-status loading" role="status"><span class="spinner" aria-hidden="true"></span>${esc(message)}</div>`;
-  } else if (status === 'error') {
-    statusBox = `
+/** Progress or error under a link form (shared by the Import tab and the Import window). */
+function linkStatusBox() {
+  const { status, message, caption } = ui.link;
+  if (status === 'loading') {
+    return `<div class="link-status loading" role="status"><span class="spinner" aria-hidden="true"></span>${esc(message)}</div>`;
+  }
+  if (status === 'error') {
+    return `
       <div class="link-status error" role="alert">
         <p>${esc(message)}</p>
-        ${caption ? '<button class="btn ghost small" data-action="caption-to-text">Edit the caption in Text import ↓</button>' : ''}
+        ${caption ? '<button class="btn ghost small" data-action="caption-to-text">Edit the caption as text</button>' : ''}
       </div>`;
   }
+  return '';
+}
+
+/** The link form: paste or drag a link in, then Scan. */
+function linkForm() {
+  const { status, url } = ui.link;
+  const loading = status === 'loading';
+  return `
+      <form class="inline-form" data-form="import-link">
+        <input type="text" name="url" inputmode="url" autocomplete="off" data-focus="link" aria-label="Recipe link"
+               value="${esc(loading || status === 'error' ? url || '' : '')}"
+               placeholder="Paste or drag a link here — https://…" ${loading ? 'disabled' : ''}>
+        <button class="btn" ${loading ? 'disabled' : ''}>${loading ? 'Scanning…' : 'Scan'}</button>
+      </form>`;
+}
+
+function renderLinkPanel() {
+  const bookmarklet = `javascript:void(window.open('${location.origin}/?share-url='+encodeURIComponent(location.href)))`;
+  const statusBox = linkStatusBox();
 
   if (!SERVER_MODE) {
     return `
@@ -796,14 +866,9 @@ function renderLinkPanel() {
       <div class="panel-head"><h3>Link</h3><span class="tag have">new</span></div>
       <p class="sub" style="margin:0 0 12px">
         Paste a link to a recipe website, a TikTok, an Instagram post or Reel, or a YouTube video or Short.
-        The app reads the recipe (or the video's caption/description) and imports it.
+        The app reads the recipe (or the video's caption/description) and opens it for you to check before it's saved.
       </p>
-      <form class="inline-form" data-form="import-link">
-        <input type="text" name="url" inputmode="url" autocomplete="off" data-focus="link"
-               value="${esc(loading || status === 'error' ? url || '' : '')}"
-               placeholder="https://www.tiktok.com/@chef/video/…" ${loading ? 'disabled' : ''}>
-        <button class="btn" ${loading ? 'disabled' : ''}>${loading ? 'Reading…' : 'Import'}</button>
-      </form>
+      ${linkForm()}
       <div class="platforms"><span class="tag">Recipe sites</span><span class="tag">TikTok</span><span class="tag">Instagram</span><span class="tag">YouTube &amp; Shorts</span></div>
       ${statusBox}
       <details class="desc share-help">
@@ -862,12 +927,149 @@ Instructions
     </section>`;
 }
 
+/* ---------------- pop-up windows ---------------- */
+
+function modal(title, body, footer, label) {
+  return `
+    <div class="modal-backdrop" data-modal-backdrop>
+      <div class="modal" role="dialog" aria-modal="true" aria-label="${esc(label || title)}">
+        <div class="modal-head">
+          <h3>${title}</h3>
+          <button class="icon-btn" data-action="modal-close" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">${body}</div>
+        ${footer ? `<div class="modal-foot">${footer}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+/** US-1: choose one or more shopping lists for the ingredients the recipe still needs. */
+function renderListPicker() {
+  const p = ui.listPicker;
+  const rows = state.lists.map((l) => {
+    const already = p.names.filter((n) => l.items.some((i) => !i.done && norm(i.name) === norm(n))).length;
+    const willAdd = p.names.length - already;
+    return `
+      <label class="pick-row">
+        <input type="checkbox" data-action="picker-list" value="${l.id}" ${p.selected.includes(l.id) ? 'checked' : ''}>
+        <span class="pick-name">${esc(l.name)}</span>
+        <span class="sub">${willAdd ? `adds ${plural(willAdd, 'item')}` : 'already has everything'}${already && willAdd ? ` · ${already} already on it` : ''}</span>
+      </label>`;
+  }).join('');
+  const body = `
+    <p class="sub" style="margin:0 0 10px">${p.names.length === 1
+      ? `Add <strong>${esc(p.names[0])}</strong> to:`
+      : `Adds ${plural(p.names.length, 'needed item')} (${esc(p.names.join(', '))}) to each list you pick. Items already on a list aren't added twice.`}</p>
+    <div class="pick-list">
+      ${rows}
+      <label class="pick-row">
+        <input type="checkbox" data-action="picker-new" ${p.newList ? 'checked' : ''}>
+        <span class="pick-name">New list</span>
+        <input type="text" class="pick-new-name" data-bind="picker-new-name" data-focus="picker-new-name" value="${esc(p.newName)}"
+               placeholder="Name (optional)" aria-label="New list name" ${p.newList ? '' : 'disabled'}>
+      </label>
+    </div>`;
+  const footer = `
+    <button class="btn ghost" data-action="modal-close">Cancel</button>
+    <button class="btn" data-action="picker-confirm">Add to ${p.selected.length + (p.newList ? 1 : 0) === 1 ? 'list' : 'lists'}</button>`;
+  return modal('Add to List', body, footer);
+}
+
+/** US-2: the Import window on the library page. */
+function renderImportDialog() {
+  const { mode } = ui.importDialog;
+  if (mode === 'url') {
+    const body = SERVER_MODE ? `
+      <p class="sub" style="margin:0 0 12px">Paste or drag in a link to a recipe page, a TikTok, an Instagram post or Reel,
+        or a YouTube video. The recipe opens for you to check before it's saved.</p>
+      ${linkForm()}
+      ${linkStatusBox()}` : `
+      <p class="sub" style="margin:0">Importing from a link needs the app's server. Start it with the Cookbook desktop icon
+        or <code>npm start</code>, then open <code>http://localhost:3560</code>.</p>`;
+    return modal('Import by URL', body, '<button class="btn ghost" data-action="import-mode" data-mode="menu">← Back</button>');
+  }
+  if (mode === 'text') {
+    const body = `
+      <form data-form="import-text">
+        <textarea name="text" rows="10" data-bind="import-text" data-focus="import-text"
+                  placeholder="Paste a recipe article or a video caption…">${esc(ui.importText)}</textarea>
+        <div class="modal-inline-actions"><button class="btn">Scan text</button></div>
+      </form>`;
+    return modal('Import from text', body, '<button class="btn ghost" data-action="import-mode" data-mode="menu">← Back</button>');
+  }
+  const option = (action, title, desc, extra = '') => `
+      <button class="import-option" data-action="${action}" ${extra}>
+        <strong>${title}</strong><span class="sub">${desc}</span>
+      </button>`;
+  const body = `
+    <div class="import-options">
+      ${option('import-mode', 'Import by URL', 'A recipe website, TikTok, Instagram or YouTube link', 'data-mode="url"')}
+      ${option('import-mode', 'Paste text', 'Type or paste a recipe or caption', 'data-mode="text"')}
+      <label class="import-option" data-focus="import-file">
+        <input type="file" accept=".txt,text/plain" data-action="import-file" hidden>
+        <strong>Text file</strong><span class="sub">A .txt file from your computer</span>
+      </label>
+      ${option('noop', 'PDF <span class="tag">planned</span>', 'Read a recipe saved as a PDF', 'disabled')}
+      ${option('noop', 'Photo <span class="tag">planned</span>', 'Scan a photo of a cookbook page', 'disabled')}
+    </div>`;
+  return modal('Import a recipe', body, '');
+}
+
+function renderModal() {
+  if (ui.listPicker && ui.view === 'recipe' && !ui.editing) return renderListPicker();
+  if (ui.importDialog && ui.view === 'library') return renderImportDialog();
+  return '';
+}
+
+function closeModal() {
+  if (ui.link.status === 'loading') return;   // the scan is still running
+  ui.listPicker = null;
+  ui.importDialog = null;
+  if (ui.link.status === 'error') ui.link = { status: 'idle' };
+  render();
+}
+
 /* ---------------- text import ---------------- */
 
 function importRecipeText(text) {
   const parsed = window.RecipeParser.parseRecipe(text);
   if (!parsed) return null;
-  return upgradeRecipe({ id: uid(), ...parsed, favorite: false, useFridge: true });
+  return upgradeRecipe({ id: uid(), ...parsed, name: parsed.name.slice(0, C.NAME_MAX), favorite: false, useFridge: true });
+}
+
+const NO_DIRECTIONS_NOTICE = {
+  kind: 'warn',
+  field: 'directions',
+  text: 'No directions were found — add the steps below, or save the recipe without them.',
+};
+
+/**
+ * Use case step 5: an import opens the recipe form pre-filled. Nothing is added to the library
+ * until the cook presses Save changes; Cancel leaves the library unchanged.
+ */
+function openImportedDraft(recipe, from = '') {
+  if (!confirmLeaveEditor()) return false;
+  ui.importDialog = null;
+  ui.recipeId = recipe.id;
+  startEditing(recipe, true, { imported: true, notice: recipe.directions.trim() ? null : NO_DIRECTIONS_NOTICE });
+  ui.view = 'recipe';
+  render();
+  window.scrollTo(0, 0);
+  const steps = recipe.directions.split('\n').filter((l) => /^\d+\. /.test(l)).length;
+  toast(`Scanned${from ? ` from ${from}` : ''} · ${plural(recipe.ingredients.length, 'ingredient')} · ${plural(steps, 'step')} — check it, then Save changes`);
+  return true;
+}
+
+/** Import → Text file: read a .txt file and scan it like pasted text. */
+async function importTextFile(file) {
+  if (!file) return;
+  if (!/\.txt$/i.test(file.name) && file.type && !/^text\//.test(file.type)) {
+    toast('Choose a plain text (.txt) file');
+    return;
+  }
+  const recipe = importRecipeText(await file.text());
+  if (!recipe || !recipe.ingredients.length) { toast('No recipe found in that file'); return; }
+  openImportedDraft(recipe, file.name);
 }
 
 /* ---------------- recipe photos ---------------- */
@@ -920,9 +1122,10 @@ async function addPhotoFile(file) {
 /* ---------------- link import ---------------- */
 
 async function importLink(rawUrl) {
-  const url = extractUrl(rawUrl) || (/^[\w-]+(\.[\w-]+)+\//.test(rawUrl.trim()) ? `https://${rawUrl.trim()}` : '');
+  // Use case step 2 / alternate 2a: only a full http(s) link is sent to the server.
+  const url = extractUrl(rawUrl);
   if (!url) {
-    ui.link = { status: 'error', message: 'Paste a full link, starting with https://', url: rawUrl };
+    ui.link = { status: 'error', code: 'invalid-link', message: 'Enter a full link starting with http', url: rawUrl };
     render();
     return;
   }
@@ -932,7 +1135,7 @@ async function importLink(rawUrl) {
     url,
     message: where === 'website' ? 'Reading the recipe page…' : `Reading the ${where} ${where === 'YouTube' ? 'description' : 'caption'}…`,
   };
-  if (ui.view === 'import') render();
+  if (ui.view === 'import' || ui.importDialog) render();
 
   let data;
   try {
@@ -942,41 +1145,28 @@ async function importLink(rawUrl) {
     data = { ok: false, error: 'Couldn\'t reach the Cookbook server. Is it still running (npm start)?' };
   }
   if (!data.ok) {
-    ui.link = { status: 'error', url, message: data.error, caption: data.caption || '' };
-    ui.view = 'import';
+    // Alternates 3a / 4a: say what went wrong; nothing is saved.
+    ui.link = { status: 'error', code: data.code || '', url, message: data.error, caption: data.caption || '' };
+    if (!ui.importDialog && ui.view !== 'recipe') ui.view = 'import';
     render();
     return;
   }
 
-  const recipe = upgradeRecipe({ id: uid(), ...data.recipe, image: '', favorite: false, useFridge: true });
-  state.recipes.push(recipe);
-  if (!save()) {
-    state.recipes.pop();
-    ui.link = { status: 'error', url, message: 'Browser storage is full — delete a recipe or a photo and try again.' };
-    render();
-    return;
-  }
+  const r = data.recipe;
+  const recipe = upgradeRecipe({ id: uid(), ...r, name: String(r.name || '').slice(0, C.NAME_MAX), image: '', favorite: false, useFridge: true });
 
-  // The server sends the dish photo along; shrink it like any other photo before saving.
-  if (data.recipe.image) {
-    let photo = '';
+  // The server sends the dish photo along; shrink it like any other photo. It's saved with the recipe on Save.
+  if (r.image) {
     try {
-      const blob = await (await fetch(data.recipe.image)).blob();
-      photo = await photoToDataUrl(blob);
+      const blob = await (await fetch(r.image)).blob();
+      recipe.image = await photoToDataUrl(blob);
     } catch (e) {
-      photo = /^https:\/\//.test(data.recipe.image) ? data.recipe.image : '';
-    }
-    if (photo) {
-      recipe.image = photo;
-      if (!save()) { recipe.image = ''; save(); }
+      recipe.image = /^https:\/\//.test(r.image) ? r.image : '';
     }
   }
 
   ui.link = { status: 'idle' };
-  ui.recipeId = recipe.id;
-  go('recipe');
-  const steps = recipe.directions.split('\n').filter((l) => /^\d+\. /.test(l)).length;
-  toast(`Imported “${recipe.name}” from ${where === 'website' ? 'the web' : where} · ${plural(recipe.ingredients.length, 'ingredient')} · ${plural(steps, 'step')}`);
+  openImportedDraft(recipe, where === 'website' ? 'the web' : where);
 }
 
 /** Links shared into the installed app (Android Share menu) or sent by the bookmarklet. */
@@ -1011,6 +1201,8 @@ function toast(msg) {
 
 function go(view) {
   if (!confirmLeaveEditor()) return false;
+  ui.listPicker = null;
+  ui.importDialog = null;
   ui.view = view;
   render();
   window.scrollTo(0, 0);
@@ -1019,6 +1211,8 @@ function go(view) {
 
 function openRecipe(id, { edit = false } = {}) {
   if (!confirmLeaveEditor()) return false;
+  ui.listPicker = null;
+  ui.importDialog = null;
   ui.recipeId = id;
   const r = findRecipe(id);
   if (edit && r) startEditing(r);
@@ -1034,8 +1228,10 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 document.addEventListener('click', (e) => {
+  // Clicking the dimmed area around a pop-up window closes it.
+  if (e.target.matches && e.target.matches('[data-modal-backdrop]')) { closeModal(); return; }
   const el = e.target.closest('[data-action]');
-  if (!el || el.tagName === 'SELECT' || el.type === 'checkbox') return;
+  if (!el || el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'file') return;
   const { action } = el.dataset;
   const recipe = findRecipe(ui.recipeId);
 
@@ -1092,19 +1288,25 @@ document.addEventListener('click', (e) => {
       render();
       break;
 
-    case 'filter-toggle':
-      ui.filter[el.dataset.key] = !ui.filter[el.dataset.key];
+    case 'filter-toggle': {
+      const key = el.dataset.key;
+      ui.filter[key] = !ui.filter[key];
+      // "Can make now" and "Missing ingredients" can't both be on.
+      if (ui.filter[key] && key === 'canMake') ui.filter.missing = false;
+      if (ui.filter[key] && key === 'missing') ui.filter.canMake = false;
       render();
       break;
+    }
 
     case 'filter-clear':
-      ui.filter = { q: '', scope: ui.filter.scope, favorites: false, canMake: false };
+      ui.filter = NO_FILTERS();
       render();
       break;
 
     case 'caption-to-text':
       ui.importText = ui.link.caption || '';
       ui.link = { status: 'idle' };
+      if (ui.importDialog) ui.importDialog = { mode: 'text' };
       ui.focusKey = 'import-text';
       render();
       break;
@@ -1156,12 +1358,31 @@ document.addEventListener('click', (e) => {
       break;
 
     case 'add-missing-one':
-      addToList(ui.targetListId, [el.dataset.name], recipe);
-      render();
+      openListPicker([el.dataset.name]);
       break;
 
     case 'add-missing-all':
-      addToList(ui.targetListId, missingFor(recipe), recipe);
+      if (recipe) openListPicker(missingFor(recipe));
+      break;
+
+    case 'picker-confirm':
+      confirmListPicker(recipe);
+      break;
+
+    case 'modal-close':
+      closeModal();
+      break;
+
+    case 'import-open':
+      ui.importDialog = { mode: 'menu' };
+      if (ui.link.status === 'error') ui.link = { status: 'idle' };
+      render();
+      break;
+
+    case 'import-mode':
+      ui.importDialog = { mode: el.dataset.mode };
+      if (ui.link.status === 'error') ui.link = { status: 'idle' };
+      ui.focusKey = el.dataset.mode === 'url' ? 'link' : el.dataset.mode === 'text' ? 'import-text' : null;
       render();
       break;
 
@@ -1234,8 +1455,20 @@ document.addEventListener('change', (e) => {
     ui.draft.useFridge = el.checked;
   } else if (action === 'image-file') {
     addPhotoFile(el.files && el.files[0]);
-  } else if (action === 'target-list') {
-    ui.targetListId = el.value;
+  } else if (action === 'import-file') {
+    importTextFile(el.files && el.files[0]);
+  } else if (action === 'filter-time') {
+    ui.filter.maxTime = Number(el.value) || 0;
+    render();
+  } else if (action === 'picker-list' && ui.listPicker) {
+    const sel = ui.listPicker.selected.filter((id) => id !== el.value);
+    if (el.checked) sel.push(el.value);
+    ui.listPicker.selected = sel;
+    render();
+  } else if (action === 'picker-new' && ui.listPicker) {
+    ui.listPicker.newList = el.checked;
+    ui.focusKey = el.checked ? 'picker-new-name' : null;
+    render();
   } else if (action === 'item-toggle') {
     const list = findList(el.dataset.list);
     list.items[Number(el.dataset.idx)].done = el.checked;
@@ -1260,10 +1493,16 @@ document.addEventListener('input', (e) => {
 
   // Recipe fields change the draft only; they're written to the recipe on Save.
   const d = ui.editing ? ui.draft : null;
-  if (bind === 'recipe-name') { if (d) d.name = el.value; return; }
+  if (bind === 'recipe-name') {
+    if (d) d.name = el.value;
+    if (el.value.trim()) el.classList.remove('invalid');
+    return;
+  }
+  if (bind === 'recipe-time') { if (d) d.time = el.value; return; }
   if (bind === 'recipe-desc') { if (d) d.description = el.value; return; }
   if (bind === 'recipe-directions') { if (d) d.directions = el.value; return; }
   if (bind === 'import-text') { ui.importText = el.value; return; }
+  if (bind === 'picker-new-name') { if (ui.listPicker) ui.listPicker.newName = el.value; return; }
   else if (bind === 'list-name') findList(el.dataset.list).name = el.value;
   save();
 });
@@ -1338,13 +1577,7 @@ document.addEventListener('submit', (e) => {
     case 'import-text': {
       const recipe = importRecipeText(value);
       if (!recipe) { toast('Paste some recipe text first'); return; }
-      state.recipes.push(recipe);
-      save();
-      ui.importText = '';
-      ui.recipeId = recipe.id;
-      go('recipe');
-      const steps = recipe.directions.split('\n').filter((l) => /^\d+\. /.test(l)).length;
-      toast(`Imported “${recipe.name}” · ${plural(recipe.ingredients.length, 'ingredient')} · ${plural(steps, 'step')}`);
+      if (openImportedDraft(recipe)) ui.importText = '';
       return;
     }
 
@@ -1357,6 +1590,7 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog)) { closeModal(); return; }
   if (e.key === 'Escape' && e.target.dataset && e.target.dataset.filter === 'q' && e.target.value) {
     e.target.value = '';
     e.target.dispatchEvent(new Event('input', { bubbles: true }));

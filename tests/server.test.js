@@ -29,7 +29,11 @@ test('serves the app but nothing outside it', async (t) => {
   }
   const bad = await get('/api/import?url=not-a-link');
   assert.equal(bad.status, 422);
-  assert.match((await bad.json()).error, /doesn't look like a link/);
+  const badBody = await bad.json();
+  assert.equal(badBody.code, 'invalid-link');
+  assert.match(badBody.error, /^Enter a full link starting with http/);
   const local = await get('/api/import?url=' + encodeURIComponent('http://127.0.0.1/recipe'));
-  assert.match((await local.json()).error, /local addresses are not allowed/);
+  const localBody = await local.json();
+  assert.equal(localBody.code, 'unreachable');
+  assert.match(localBody.error, /^Couldn't reach that page \(local addresses are not allowed\)/);
 });
