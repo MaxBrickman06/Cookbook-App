@@ -190,3 +190,14 @@ I want you to open a new branch from the most recent demo and implement what you
 [2026-10-29 16:27 EDT]  branch: updated-demo-2026-10-29
 
 I downloaded the branches zip from the repo and ran the install cookbook file. i am trying to open the app now using the desktop icon and its not working
+
+----------------------------------------------------------------------
+[2026-10-29 16:34 EDT]  branch: final-demo-2026-10-29 (from updated-demo-2026-10-29)
+(Attachments: project files Cookbook App Design.pdf and 00-overview-collage.png)
+
+I want you to set up a final demo for me to show the full capabilities of the app. I want you to implement the user stories I included in my design document. I want you to compile a very short slideshow that goes over the apps capabilities, and write me presenter instructions on what to do in the app to show off the feature.  be in depth, but concise, I want to try and keep it below 15 minutes
+
+----------------------------------------------------------------------
+[2026-10-29 16:49 EDT]  branch: final-demo-2026-10-29
+
+i want the demo to display whats veen implimented so far, nothing new
