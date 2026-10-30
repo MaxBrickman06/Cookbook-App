@@ -1,6 +1,16 @@
 # Cookbook-App
 CS3560 Project 2
 
+## What's in this branch (max-final)
+
+Everything the team has pushed, merged into one branch with each person's history kept:
+
+| Where | Whose | What |
+| --- | --- | --- |
+| this folder (`index.html`, `app.js`, `server.js`, …) | Max | The browser app below: library, fridge, lists, import from links, text, PDFs and photos |
+| `eman-nextjs/` | Eman (from `eman-demo`) | Next.js + PostgreSQL/Prisma version: recipe CRUD, image uploads, favorites, pantry. Its own README and `package.json` — run it from that folder |
+| `Jayakumar_Requirements_Spec.docx`, `SelfNotes_Cookbook.pdf`, `Cookbook_README.md` | Jayant (from `jay_trial`) | Requirements spec, notes, and the README for his Gemini AI importer trial |
+
 ## Demo (browser)
 
 A plain HTML/CSS/JavaScript app with a tiny Node.js server. No frameworks, no build step, no dependencies to install.
