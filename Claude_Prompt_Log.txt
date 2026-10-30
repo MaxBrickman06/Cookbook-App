@@ -206,3 +206,8 @@ i want the demo to display whats veen implimented so far, nothing new
 [2026-10-30 14:18 EDT]  branch: max-final (from final-demo-2026-10-29, merging eman-demo and jay_trial)
 
 okay, its time to implement the rest of the features. on the GitHub repo, my classmates have committed their own tweaks and changes. to start i want you to merge everything into a new branch called max-final that has all of the features in the repo already. then i want you to work on the import from pdf scanner. each new feature should get its own commit to the max-final branch. then i want you to implement the import by picture scanner. after that the load fridge from image button.
+
+----------------------------------------------------------------------
+[2026-10-30 14:56 EDT]  branch: max-final
+
+great. can you add an algorithm to convert all items into their shortened names for all of the import features? for example "all purpose flour" being simplified to just "flour" from a webpage. also get rid of emans branch if nothing is being contributed, thats not really needed at all.

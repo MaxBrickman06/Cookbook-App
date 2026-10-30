@@ -14,6 +14,9 @@
   'use strict';
 
   const Parser = typeof module !== 'undefined' && module.exports ? require('./parser.js') : root.RecipeParser;
+  const Names = typeof module !== 'undefined' && module.exports ? require('./names.js') : root.IngredientNames;
+  /** Same ingredient? Short names, any plural: "Eggs" = "egg", "Unsalted butter" = "Butter", "Mozzarella cheese" = "Mozzarella". */
+  const same = (a, b) => Names.matchKey(a) === Names.matchKey(b);
 
   const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
 
@@ -71,11 +74,11 @@
 
   /* ---------------- FR-3 / US-1: what you have ---------------- */
 
-  const inFridge = (fridge, name) => fridge.some((f) => norm(f) === norm(name));
+  const inFridge = (fridge, name) => fridge.some((f) => same(f, name));
 
   /** Lists that already have this item and haven't checked it off. */
   function listsWith(lists, name) {
-    return lists.filter((l) => l.items.some((i) => !i.done && norm(i.name) === norm(name)));
+    return lists.filter((l) => l.items.some((i) => !i.done && same(i.name, name)));
   }
 
   /**
@@ -125,7 +128,7 @@
       added[id] = 0;
       names.forEach((n) => {
         if (!String(n).trim()) return;
-        if (list.items.some((i) => !i.done && norm(i.name) === norm(n))) return;
+        if (list.items.some((i) => !i.done && same(i.name, n))) return;
         list.items.push({ name: n, done: false });
         added[id]++;
       });

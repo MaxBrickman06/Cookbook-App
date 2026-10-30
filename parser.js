@@ -14,6 +14,8 @@
   const norm = (s) => String(s).trim().toLowerCase();
   const words = (s) => s.split(/\s+/).filter(Boolean);
   const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  // Short ingredient names for imports (names.js): "all-purpose flour" → Flour.
+  const Names = typeof module !== 'undefined' && module.exports ? require('./names.js') : root.IngredientNames;
 
   const UNICODE_FRACTIONS = {
     '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4', '⅕': '1/5',
@@ -597,7 +599,8 @@
     const { meta, used } = readMeta(lines);
 
     const name = findTitle(lines, headLimit) || findTitle(lines, lines.length) || 'Imported recipe';
-    const { ingredients, amounts } = buildIngredients(block);
+    // Imports get short names ("all-purpose flour" → Flour, "all-purpose" kept in the amount).
+    const { ingredients, amounts } = Names.shortenAll(...Object.values(buildIngredients(block)));
     const directions = buildDirections(lines, block);
     const summary = findDescription(lines, headLimit, name, used);
     const notes = findNotes(lines, block ? block.end : 0);

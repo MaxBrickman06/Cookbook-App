@@ -11,6 +11,7 @@
 'use strict';
 
 const { parseRecipe, parseIngredientLine, formatMinutes } = require('./parser.js');
+const { shortenAll } = require('./names.js');
 
 /* ---------------- what kind of link is this? ---------------- */
 
@@ -209,7 +210,7 @@ function ingredientsFromLines(lines) {
       } else if (amount) amounts[key] = amounts[key] ? `${amounts[key]} + ${amount}` : amount;
     });
   });
-  return { ingredients, amounts };
+  return shortenAll(ingredients, amounts);   // "all-purpose flour" → Flour, like every other import
 }
 
 function recipeFromJsonLd(node) {

@@ -48,8 +48,8 @@ test('recipe website: uses the page\'s built-in recipe data', async () => {
   const { recipe, via } = await importFromUrl('https://simplyweeknight.example/lemon-chicken', net);
   assert.equal(via, 'recipe data');
   assert.equal(recipe.name, 'Lemon Herb Chicken & Potatoes');
-  assert.ok(recipe.ingredients.includes('Baby potatoes'));
-  assert.ok(recipe.ingredients.includes('Bone-in skin-on chicken thighs'));
+  assert.ok(recipe.ingredients.includes('Potatoes'));                 // short names: "baby potatoes" → Potatoes
+  assert.ok(recipe.ingredients.includes('Chicken thighs'));
   assert.ok(recipe.ingredients.includes('Black pepper'));
   assert.equal(recipe.amounts['olive oil'], '3 tablespoons, divided');
   assert.equal(steps(recipe).length, 4);
@@ -77,7 +77,7 @@ test('YouTube Short: recipe from the description, chapters and links dropped', a
   const { recipe, platform } = await importFromUrl('https://youtube.com/shorts/abcdefghijk?feature=share', net);
   assert.equal(platform, 'youtube');
   assert.equal(recipe.name, 'CRISPY Smashed Potatoes');
-  assert.deepEqual(recipe.ingredients, ['Baby potatoes', 'Olive oil', 'Garlic powder', 'Parmesan', 'Flaky salt']);
+  assert.deepEqual(recipe.ingredients, ['Potatoes', 'Olive oil', 'Garlic powder', 'Parmesan', 'Salt']);
   assert.equal(steps(recipe).length, 4);
   assert.doesNotMatch(recipe.directions, /Intro|Subscribe|amzn/);
   assert.match(recipe.description, /Imported from YouTube · @Kitchen Kev/);
@@ -118,7 +118,7 @@ test('TikTok short link: resolves it, then reads the caption from oEmbed', async
   const { recipe, platform } = await importFromUrl('https://vm.tiktok.com/ZMabc123/', net);
   assert.equal(platform, 'tiktok');
   assert.equal(recipe.name, 'Cheesy garlic potato bites');
-  assert.deepEqual(recipe.ingredients, ['Russet potatoes', 'Mozzarella', 'Parmesan', 'Garlic powder', 'Egg', 'Cornstarch', 'Salt', 'Pepper']);
+  assert.deepEqual(recipe.ingredients, ['Potatoes', 'Mozzarella', 'Parmesan', 'Garlic powder', 'Egg', 'Cornstarch', 'Salt', 'Pepper']);
   assert.equal(steps(recipe).length, 4);
   assert.match(recipe.description, /Imported from TikTok · @cheflily/);
   assert.equal(recipe.image, 'https://p16.tiktokcdn.com/thumb.jpg');
@@ -147,7 +147,7 @@ test('Instagram reel: caption from the embed page', async () => {
 test('Instagram fallback: caption from the post page preview text', async () => {
   const net = fakeNet({ 'https://www.instagram.com/reel/C1abc/': page('instagram-page.html') });
   const { recipe } = await importFromUrl('https://www.instagram.com/reel/C1abc/', net);
-  assert.deepEqual(recipe.ingredients, ['Spaghetti', 'Pecorino romano', 'Black pepper']);
+  assert.deepEqual(recipe.ingredients, ['Spaghetti', 'Pecorino', 'Black pepper']);
   assert.equal(recipe.amounts.spaghetti, '200 g');
   assert.equal(steps(recipe).length, 1);
 });
@@ -185,8 +185,8 @@ test('real video description (from the design sketch screenshot) imports exactly
   const net = fakeNet({ 'https://www.youtube.com/watch?v=abcdefghijk': watch });
   const { recipe } = await importFromUrl('https://youtube.com/shorts/abcdefghijk', net);
   assert.equal(recipe.name, 'Cheesy Garlic Potato Bites Fried');
-  assert.deepEqual(recipe.ingredients, ['Potatoes', 'Butter', 'Parmesan cheese', 'Salt', 'Garlic powder', 'Parsley', 'Cornstarch', 'Egg', 'Mozzarella cheese', 'Oil']);
-  assert.equal(recipe.amounts['parmesan cheese'], '1/3 cup');
+  assert.deepEqual(recipe.ingredients, ['Potatoes', 'Butter', 'Parmesan', 'Salt', 'Garlic powder', 'Parsley', 'Cornstarch', 'Egg', 'Mozzarella', 'Oil']);
+  assert.equal(recipe.amounts.parmesan, '1/3 cup');
   assert.equal(recipe.amounts.oil, 'for frying');
   assert.equal(steps(recipe).length, 5);
   assert.match(recipe.directions, /^1\. Peel and slice potatoes\. Boil until tender \(until a fork can easily pierce the surface\)\n2\. Mash/);

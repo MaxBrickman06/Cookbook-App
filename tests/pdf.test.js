@@ -32,8 +32,9 @@ const steps = (r) => r.directions.split('\n').filter((l) => /^\d+\. /.test(l));
 test('pdf: one-column recipe card', async () => {
   const { recipe } = await importPdf('../demo/brown-butter-cookies.pdf');
   assert.equal(recipe.name, 'Chewy Brown Butter Chocolate Chip Cookies');
-  assert.equal(recipe.ingredients.length, 11);
-  assert.equal(recipe.amounts['unsalted butter'], '1 cup (226g)');
+  assert.equal(recipe.ingredients.length, 10);                       // salt + flaky sea salt → one Salt
+  assert.equal(recipe.amounts.butter, '1 cup (226g), unsalted');
+  assert.equal(recipe.amounts.flour, '2 1/4 cups, all-purpose');
   assert.equal(steps(recipe).length, 6);
   assert.match(steps(recipe)[0], /swirling, until it smells nutty .* cool for 10 minutes\.$/);   // a wrapped step is one step
   assert.equal(recipe.time, '27 min');

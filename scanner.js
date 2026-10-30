@@ -25,6 +25,7 @@
   'use strict';
 
   const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
+  const Names = () => (typeof module !== 'undefined' && module.exports ? require('./names.js') : root.IngredientNames);
 
   /* ---------------- PDF text → lines in reading order ---------------- */
 
@@ -300,9 +301,9 @@
       const m = /^\?\s+(c|t|tsp|tbsp|tbs|cups?|oz|lbs?|g|ml)\s+(.+)$/i.exec(name);
       if (!m) return name;
       const clean = m[2].replace(/,\s*as needed$/i, '').trim();
-      const fixed = clean.charAt(0).toUpperCase() + clean.slice(1);
+      const { name: fixed, note } = Names().shorten(clean.charAt(0).toUpperCase() + clean.slice(1));
       delete r.amounts[norm(name)];
-      r.amounts[norm(fixed)] = `? ${m[1]}`;
+      r.amounts[norm(fixed)] = Names().withNote(`? ${m[1]}`, note);
       return fixed;
     });
     return r;
@@ -325,14 +326,15 @@
     const knownKeys = known.map((k) => ({ name: k, key: itemKey(k) })).filter((k) => k.key)
       .sort((a, b) => b.key.length - a.key.length);   // the most specific name first
     const out = [];
-    found.forEach((raw) => {
+    found.forEach((said) => {
+      const raw = Names().shorten(said).name;   // "Shredded mozzarella" → Mozzarella, like every import
       const k = itemKey(raw);
       if (!k) return;
       const hit = knownKeys.find((x) => x.key === k)
         || knownKeys.find((x) => (` ${k} `).includes(` ${x.key} `))                      // "large brown egg" has "egg"
         || knownKeys.find((x) => k.length >= 4 && (` ${x.key} `).includes(` ${k} `));     // "romaine" → "romaine lettuce"
       const name = hit ? hit.name : titleCase(raw);
-      if (!out.some((o) => norm(o.name) === norm(name))) out.push({ name, found: String(raw).trim() });
+      if (!out.some((o) => norm(o.name) === norm(name))) out.push({ name, found: String(said).trim() });
     });
     return out;
   }

@@ -31,8 +31,10 @@ test('ingredient lines: amounts, units and notes split from the name', () => {
 test('food blog: skips the story and reads the recipe card', () => {
   const r = article('blog-cookies.txt');
   assert.equal(r.name, 'Chewy Brown Butter Chocolate Chip Cookies');
-  assert.equal(r.ingredients.length, 11);
-  assert.equal(r.ingredients[0], 'Unsalted butter');
+  assert.equal(r.ingredients.length, 10);                        // kosher salt + flaky sea salt → one Salt
+  assert.equal(r.ingredients[0], 'Butter');
+  assert.equal(r.amounts.butter, '1 cup (226g), unsalted');       // what the short name left out stays in the amount
+  assert.equal(r.amounts.salt, '1/2 teaspoon + flaky sea, for topping (optional)');
   assert.ok(!r.ingredients.some((n) => /metric|brown butter:/i.test(n)));
   assert.equal(stepCount(r), 6);
   assert.match(r.description, /Prep time: 15 minutes/);
@@ -43,7 +45,7 @@ test('food blog: skips the story and reads the recipe card', () => {
 test('"Step 1" style directions with photo credits in between', () => {
   const r = article('allrecipes-curry.txt');
   assert.equal(r.name, 'Easy Chicken Curry');
-  assert.ok(r.ingredients.includes('Boneless skinless chicken thighs'));
+  assert.ok(r.ingredients.includes('Chicken thighs'));
   assert.ok(r.ingredients.includes('Diced tomatoes'));
   assert.equal(stepCount(r), 5);
   assert.doesNotMatch(r.directions, /Dotdash/);
@@ -69,6 +71,6 @@ test('no section headings at all', () => {
 test('simple hand-typed format still works', () => {
   const r = article('simple.txt');
   assert.equal(r.name, 'Garlic Butter Noodles');
-  assert.deepEqual(r.ingredients, ['Spaghetti', 'Butter', 'Garlic', 'Parmesan cheese']);
+  assert.deepEqual(r.ingredients, ['Spaghetti', 'Butter', 'Garlic', 'Parmesan']);
   assert.equal(r.directions, '1. Boil the pasta. Melt butter with garlic, toss together, top with parmesan.');
 });

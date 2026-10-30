@@ -12,7 +12,7 @@ const steps = (r) => r.directions.split('\n').filter((l) => /^\d+\. /.test(l));
 test('photo: a screenshot of a video description (dark mode, app buttons around it)', () => {
   const r = scan('video-description-screenshot.txt');
   assert.equal(r.name, 'Cheesy Garlic Potato Bites Fried');
-  assert.deepEqual(r.ingredients, ['Potatoes', 'Butter', 'Parmesan cheese', 'Salt', 'Garlic powder', 'Parsley', 'Cornstarch', 'Egg', 'Mozzarella cheese', 'Oil']);
+  assert.deepEqual(r.ingredients, ['Potatoes', 'Butter', 'Parmesan', 'Salt', 'Garlic powder', 'Parsley', 'Cornstarch', 'Egg', 'Mozzarella', 'Oil']);
   assert.equal(r.amounts.egg, '1');              // OCR read "1egg"
   assert.equal(r.amounts.parsley, '1 tsp');      // "1tsp parsley"
   assert.equal(steps(r).length, 5);
@@ -23,8 +23,8 @@ test('photo: a curved, shadowed cookbook page — misread "|bs", lower-case titl
   const r = scan('cookbook-page.txt');
   assert.equal(r.name, 'Cajun-Roasted Potatoes');
   assert.equal(r.ingredients.length, 6);
-  assert.deepEqual([r.ingredients[0], ...r.ingredients.slice(2)], ['Baby potatoes', 'Garlic', 'Sea salt', 'Black pepper', 'Cayenne pepper']);
-  assert.equal(r.amounts['baby potatoes'], '2 lbs');
+  assert.deepEqual([r.ingredients[0], ...r.ingredients.slice(2)], ['Potatoes', 'Garlic', 'Salt', 'Black pepper', 'Cayenne pepper']);
+  assert.equal(r.amounts.potatoes, '2 lbs, baby');
   assert.equal(r.amounts.garlic, '2 cloves, minced');
   assert.equal(r.amounts['cayenne pepper'], '? t');           // "½ t" read as "% t": shown as "?" to check, not guessed
   assert.match(steps(r)[0], /^1\. Set Bravo to .Roast. and preheat at 450°F/);

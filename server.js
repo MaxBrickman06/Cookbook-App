@@ -127,7 +127,7 @@ const TYPES = {
 };
 
 /** Only the browser app is served — never server code, tests or git files. */
-const PUBLIC_FILES = new Set(['index.html', 'app.js', 'parser.js', 'cookbook.js', 'scanner.js', 'styles.css', 'manifest.webmanifest', 'sw.js']);
+const PUBLIC_FILES = new Set(['index.html', 'app.js', 'names.js', 'parser.js', 'cookbook.js', 'scanner.js', 'styles.css', 'manifest.webmanifest', 'sw.js']);
 /** Plus the icons and the PDF / photo reading libraries in vendor/ (run in the browser). */
 const PUBLIC_PATHS = /^(icons\/[\w-]+\.(png|svg)|vendor\/[a-z]+\/[\w.-]+\.(mjs|js)|vendor\/tesseract\/lang\/[a-z_]+\.traineddata\.gz)$/;
 

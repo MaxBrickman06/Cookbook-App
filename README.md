@@ -94,6 +94,19 @@ npm start        # just the server — then open http://localhost:3560
 
   It's rule-based (no AI), so always glance over the result — everything stays editable.
 
+- **Short ingredient names** — every import (link, text, PDF, photo, and the items Gemini sees in a fridge photo)
+  shortens ingredients to the everyday product, so the same thing has one name everywhere:
+  *all-purpose flour* → **Flour**, *unsalted butter* → **Butter**, *dark brown sugar* → **Brown sugar**,
+  *extra-virgin olive oil* → **Olive oil**, *shredded Parmesan cheese* → **Parmesan**, *fresh flat-leaf parsley* → **Parsley**.
+  - Words that matter when you cook move into the amount (*Flour — 2 1/4 cups, all-purpose*); noise like "fresh",
+    "organic" or "pure" is dropped.
+  - Different products are never merged: *bread flour*, *brown sugar*, *peanut butter*, *sweet potatoes*,
+    *cream cheese* and *flour tortillas* stay as they are (`names.js` lists which words can go from which product).
+  - Two lines that become the same ingredient are joined: *1/2 tsp salt* + *flaky sea salt, for topping* →
+    **Salt** — *1/2 tsp + flaky sea, for topping*.
+  - Ingredients you type yourself in the edit form are kept exactly as typed.
+  - The fridge check and shopping lists compare short names in any plural: a recipe's *1 egg* counts the *Eggs* in
+    your fridge, and *Unsalted butter* typed into the fridge counts for a recipe's *Butter*.
 - **Import → PDF** — a recipe saved as a PDF: a web page printed with *Save as PDF*, a recipe card, or a whole
   cookbook. The text inside the PDF is read in the browser with pdf.js (nothing is uploaded) and put back in reading
   order — two-column cards are read column by column, directions that wrap onto a second line are joined, and page
@@ -169,6 +182,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 - `tests/pdf.test.js` — real PDFs in `tests/pdfs/`: a recipe card, two columns, a blog page saved as PDF, cookbooks with one and three recipes, a scan, a damaged file
 - `tests/scanner.test.js` — what the OCR engine read from the photos in `demo/` (recorded in `tests/ocr/`) is cleaned up and scanned into the right recipe
 - `tests/fridge.test.js` — fridge-photo names and suggestions, and the Gemini request/answers/errors (with a fake network — no key needed)
+- `tests/names.test.js` — short names: what's shortened, what's never merged, what moves into the amount, and plural-proof fridge/list matching
 - `tests/server.test.js` — refuses private network addresses; only serves the app's own files
 - `tests/cookbook.test.js` — the checks named in the requirements spec: `recipe_requires_name` (FR-1),
   `search_matches_all_terms` (FR-2), `add_missing_no_duplicates` (FR-4), `parser_50kb_under_10s` (NFR-1),
@@ -182,6 +196,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | `scanner.js` | Reads recipes out of files: PDF text in reading order (and finds the recipes in a cookbook PDF); photos and scanned pages through OCR, with image clean-up and flattening; fridge-photo suggestions, name matching and the optional Gemini request |
 | `vendor/pdfjs/` | pdf.js 4.10 (Mozilla, Apache-2.0) — reads PDFs in the browser; no install needed |
 | `vendor/tesseract/` | Tesseract.js 6 with the English model (Apache-2.0) — reads text in photos in the browser |
+| `names.js` | Short ingredient names for imports, and the name matching the fridge check and lists use |
 | `parser.js` | Rule-based recipe scanner for pasted text and captions (runs in the browser and on the server) |
 | `importer.js` | Reads a recipe from a link: recipe sites, TikTok, Instagram, YouTube |
 | `server.js` | Serves the app and the `/api/import` route; fetches links safely |
