@@ -70,8 +70,7 @@ npm start        # just the server — then open http://localhost:3560
 - **Add to List** — appears when anything is red or yellow. It opens a window with all your shopping lists (plus
   *New list*); tick one or several and every needed ingredient is added to each list that doesn't already have it.
   *+ List* on a single row does the same for one ingredient.
-- **Import** — the *⤓ Import* button on the library opens a window: *Import by URL*, *Paste text*, *Text file* (.txt) or *PDF*.
-  Photo is shown as planned. The Import tab has the same link and text importers.
+- **Import** — the *⤓ Import* button on the library opens a window: *Import by URL*, *Paste text*, *Text file* (.txt), *PDF* or *Photo*. The Import tab has the same link and text importers.
   Every import opens the recipe **pre-filled in the edit form** — nothing is added to the library until you press
   **Save changes**; **Cancel** leaves the library as it was.
 - **Import → Text** — copy an entire recipe web page and paste it in. The scanner (`parser.js`) skips the
@@ -89,9 +88,24 @@ npm start        # just the server — then open http://localhost:3560
   order — two-column cards are read column by column, directions that wrap onto a second line are joined, and page
   headers, footers and the date/URL a browser prints are left out — then scanned like pasted text.
   - A PDF with several recipes (each starts at an *Ingredients* heading) lists them: pick one.
-  - A scanned PDF (a picture of a page) has no text inside → *"That PDF is a picture of a page…"*.
+  - A scanned PDF (pictures of pages, no text inside) is read like a photo — its first 3 pages.
   - Password-protected or damaged PDFs, files over 30 MB, and other file types get their own message.
   - No ingredient list found → the PDF's text is put in Text import to fix up.
+- **Import → Photo** — a photo of a cookbook page or a screenshot of a recipe (an app, a video description). The
+  text is read in the browser with Tesseract OCR (no AI service, nothing uploaded):
+  - In the *Scan a photo* window, drag a box around the recipe text and leave out pictures (no box = the whole photo,
+    best for screenshots). *Straighten* turns a photo that was taken sideways or at a slant.
+  - Before reading, the photo is cleaned up: turned into black-on-white text (shadows and dark-mode screenshots
+    handled), clutter beside the page (a table, a carpet) blanked out, and lines that bend toward a book's spine or
+    squeeze together in a slanted photo flattened.
+  - After reading, common misreads are fixed ("Ingrediants:" → "Ingredients:", "1egg" → "1 egg", "2 |bs" → "2 lbs",
+    "2," → "2."). An amount it can't read shows as **?** (e.g. *? t* cayenne pepper) so you know what to check.
+  - *Use this photo as the recipe picture* keeps the photo with the recipe.
+  - No text → *"No text found in that photo."* Text but no ingredient list → a tip on drawing the box, and
+    *Edit the scanned text instead* puts what was read into Text import.
+  - How well it reads depends on the photo: screenshots and flat, evenly lit pages read almost perfectly; on a
+    curved, shadowed page the name and ingredients usually come out right, but long direction lines can need fixing
+    in the review form.
 - **Import → Link** — paste (or drag in) a link and press **Scan**; the recipe is read automatically, photo included:
   - **Recipe websites:** most recipe sites include hidden, structured recipe data for Google; the app reads that
     first (exact ingredients, steps, times, servings, photo). Otherwise it reads the page text with the scanner.
@@ -142,6 +156,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 - `tests/parser.test.js` — pasted articles in `tests/articles/` (food blog, "Step 1" pages, grouped ingredients, no headings)
 - `tests/importer.test.js` — recipe-site data, YouTube descriptions, TikTok/Instagram captions, links to full recipes
 - `tests/pdf.test.js` — real PDFs in `tests/pdfs/`: a recipe card, two columns, a blog page saved as PDF, cookbooks with one and three recipes, a scan, a damaged file
+- `tests/scanner.test.js` — what the OCR engine read from the photos in `demo/` (recorded in `tests/ocr/`) is cleaned up and scanned into the right recipe
 - `tests/server.test.js` — refuses private network addresses; only serves the app's own files
 - `tests/cookbook.test.js` — the checks named in the requirements spec: `recipe_requires_name` (FR-1),
   `search_matches_all_terms` (FR-2), `add_missing_no_duplicates` (FR-4), `parser_50kb_under_10s` (NFR-1),
@@ -152,8 +167,9 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | --- | --- |
 | `index.html`, `styles.css`, `app.js` | The app (library, recipe page, fridge, lists, import) |
 | `cookbook.js` | The spec's recipe rules shared by the app and tests: names, search, have/on a list/need, adding to lists |
-| `scanner.js` | Reads recipes out of files: PDF text in reading order (and finds the recipes in a cookbook PDF) |
+| `scanner.js` | Reads recipes out of files: PDF text in reading order (and finds the recipes in a cookbook PDF); photos and scanned pages through OCR, with image clean-up and flattening |
 | `vendor/pdfjs/` | pdf.js 4.10 (Mozilla, Apache-2.0) — reads PDFs in the browser; no install needed |
+| `vendor/tesseract/` | Tesseract.js 6 with the English model (Apache-2.0) — reads text in photos in the browser |
 | `parser.js` | Rule-based recipe scanner for pasted text and captions (runs in the browser and on the server) |
 | `importer.js` | Reads a recipe from a link: recipe sites, TikTok, Instagram, YouTube |
 | `server.js` | Serves the app and the `/api/import` route; fetches links safely |
@@ -161,7 +177,6 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | `Install Cookbook.cmd`, `launcher/` | Windows desktop icon: one-time setup and the launcher it runs |
 
 ### Planned (shown as placeholders)
-- Import from a photo of a cookbook page
 - Scan a photo of your fridge to update ingredients
 
 Data is saved in your browser's localStorage (about 5 MB — roughly 30–60 recipe photos). If it fills up,

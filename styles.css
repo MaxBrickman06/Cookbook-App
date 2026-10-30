@@ -630,3 +630,18 @@ body.modal-open { overflow: hidden; }
 .link-status progress { flex: 1; min-width: 80px; height: 6px; accent-color: var(--blue); }
 .pick-button { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .pick-button:hover, .pick-button:focus-visible { border-color: var(--blue); }
+
+/* ---------- photo import ---------- */
+.modal.wide { width: min(860px, 100%); }
+.scan-stage {
+  position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line);
+  background: #0e0e10; cursor: crosshair; touch-action: none; user-select: none; line-height: 0;
+}
+.scan-stage img { width: 100%; display: block; pointer-events: none; }
+.scan-stage.busy { cursor: progress; opacity: .7; }
+.crop-shade { position: absolute; border: 2px solid var(--blue); border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55); }
+.crop-shade[hidden] { display: none; }
+.scan-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin: 12px 0; font-size: 14px; }
+.scan-controls .straighten, .scan-controls .check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.scan-controls input[type=range] { width: 160px; accent-color: var(--blue); }
+.scan-controls output { min-width: 42px; color: var(--text); font-variant-numeric: tabular-nums; }

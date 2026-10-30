@@ -117,6 +117,7 @@ const ui = {
   importDialog: null,         // Import window on the library page: { mode: 'menu' | 'url' | 'text' }
   busy: null,                 // "Reading cookbook.pdf…" window while a file is read: { title, message }
   pdfPick: null,              // a PDF with several recipes: { name, pdf, choices: [{ title, from, to }] }
+  photoScan: null,            // Scan a photo window: { file, src, crop, angle, usePicture, status, message, text }
 };
 
 const NO_FILTERS = () => ({ q: '', scope: ui.filter ? ui.filter.scope : 'all', favorites: false, canMake: false, missing: false, maxTime: 0 });
@@ -941,9 +942,17 @@ Instructions
       </label>
     </section>
 
-    <section class="panel soon">
-      <h3>Photo <span class="tag">planned</span></h3>
-      <p class="sub">Scan a cookbook page and pull out the recipe text.</p>
+    <section class="panel">
+      <div class="panel-head"><h3>Photo</h3><span class="tag have">new</span></div>
+      <p class="sub" style="margin:0 0 12px">
+        A photo of a cookbook page or a screenshot of a recipe. The text is read on this computer (OCR — no AI,
+        nothing uploaded): draw a box around the recipe, and bent or tilted lines are straightened. Photos read best
+        flat, in even light, with the text filling the box.
+      </p>
+      <label class="dropzone compact" data-dropzone="photo-import">
+        <input type="file" accept="image/*" data-action="import-photo" hidden>
+        ${PHOTO_ICON}<strong>Choose a photo</strong><span class="sub">or drag it here</span>
+      </label>
     </section>`;
 }
 
@@ -1033,7 +1042,10 @@ function renderImportDialog() {
         <input type="file" accept="application/pdf,.pdf" data-action="import-pdf" hidden>
         <strong>PDF</strong><span class="sub">A recipe or cookbook saved as a PDF</span>
       </label>
-      ${option('noop', 'Photo <span class="tag">planned</span>', 'Scan a photo of a cookbook page', 'disabled')}
+      <label class="import-option">
+        <input type="file" accept="image/*" data-action="import-photo" hidden>
+        <strong>Photo</strong><span class="sub">A cookbook page or a screenshot</span>
+      </label>
     </div>`;
   return modal('Import a recipe', body, '');
 }
@@ -1041,6 +1053,7 @@ function renderImportDialog() {
 function renderModal() {
   if (ui.busy) return renderBusy();
   if (ui.pdfPick) return renderPdfPick();
+  if (ui.photoScan) return renderPhotoScan();
   if (ui.listPicker && ui.view === 'recipe' && !ui.editing) return renderListPicker();
   if (ui.importDialog && ui.view === 'library') return renderImportDialog();
   return '';
@@ -1049,6 +1062,8 @@ function renderModal() {
 function closeModal() {
   if (ui.link.status === 'loading') return;   // the scan is still running
   if (ui.busy) return;                        // a file is still being read
+  if (ui.photoScan && ui.photoScan.status === 'loading') return;
+  closePhotoScan();
   ui.pdfPick = null;
   ui.listPicker = null;
   ui.importDialog = null;
@@ -1077,6 +1092,7 @@ const NO_DIRECTIONS_NOTICE = {
 function openImportedDraft(recipe, from = '') {
   if (!confirmLeaveEditor()) return false;
   ui.importDialog = null;
+  closePhotoScan();
   ui.recipeId = recipe.id;
   startEditing(recipe, true, { imported: true, notice: recipe.directions.trim() ? null : NO_DIRECTIONS_NOTICE });
   ui.view = 'recipe';
@@ -1175,8 +1191,27 @@ async function importPdf(file) {
 
   const textChars = pdf.pageTexts.join('').replace(/\s/g, '').length;
   if (textChars < 40) {
+    // A scanned PDF: pictures of pages, no text inside. Read the first pages like photos.
+    ui.busy = { title: `Reading ${file.name}`, message: 'This PDF is a scan — reading the pages like photos…' };
     render();
-    toast('That PDF is a picture of a page, with no text inside to read');
+    let text = '';
+    try {
+      text = await window.Scanner.ocrPdfPages(pdf.doc, 0, Math.min(pdf.numPages, 3) - 1, setBusyProgress);
+    } catch (e) { /* reported below */ }
+    ui.busy = null;
+    const recipe = text ? scannedRecipe(text) : null;
+    if (recipe && recipe.ingredients.length) {
+      if (!openImportedDraft(recipe, `${file.name} (scanned)`)) render();
+      return;
+    }
+    if (text) {
+      ui.importText = text;
+      ui.view = 'import';
+      ui.focusKey = 'import-text';
+    }
+    render();
+    toast(text ? 'No ingredient list found in the scanned pages — the text is in Text import below to fix up'
+      : 'Couldn\'t read any text in that scanned PDF');
     return;
   }
   if (pdf.recipes.length > 1) {
@@ -1198,6 +1233,148 @@ async function importPdf(file) {
   // One recipe: its pages. No "Ingredients" heading at all: the first few pages, scanned as they are.
   importPdfPages(pdf, one ? one.from : 0, one ? one.to : Math.min(pdf.pages.length, 6) - 1, file.name);
 }
+
+/* ---------------- photo import (design doc: "Photo: scan photos for recipe text") ---------------- */
+
+const WHOLE_PHOTO = () => ({ x: 0, y: 0, w: 1, h: 1 });
+
+/** Text read from a photo → a draft recipe (or null). */
+function scannedRecipe(text) {
+  const parsed = window.Scanner.parseScannedText(text);
+  if (!parsed) return null;
+  return upgradeRecipe({ id: uid(), ...parsed, name: parsed.name.slice(0, C.NAME_MAX), favorite: false, useFridge: true });
+}
+
+/** Open the Scan a photo window: draw a box around the recipe, then Scan. */
+function openPhotoScan(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { toast('That file isn\'t an image — choose a JPG or PNG photo'); return; }
+  if (!SERVER_MODE) { toast(`Scanning a photo ${NEEDS_SERVER}`); return; }
+  closePhotoScan();
+  ui.importDialog = null;
+  ui.photoScan = {
+    file, src: URL.createObjectURL(file), crop: WHOLE_PHOTO(), angle: 0,
+    usePicture: false, status: 'idle', message: '', text: '',
+  };
+  window.Scanner.preloadOcr();   // start the text reader while the cook draws the box
+  render();
+}
+
+function closePhotoScan() {
+  if (ui.photoScan && ui.photoScan.src) URL.revokeObjectURL(ui.photoScan.src);
+  ui.photoScan = null;
+}
+
+const pct = (f) => `${(f * 100).toFixed(2)}%`;
+const cropBoxStyle = (c) => `left:${pct(c.x)};top:${pct(c.y)};width:${pct(c.w)};height:${pct(c.h)}`;
+/** The preview turns around the middle of the box, exactly like the scan does. */
+const previewStyle = (p) => `transform-origin:${pct(p.crop.x + p.crop.w / 2)} ${pct(p.crop.y + p.crop.h / 2)};transform:rotate(${p.angle}deg)`;
+const angleLabel = (a) => `${a > 0 ? '+' : ''}${a}°`;
+
+function renderPhotoScan() {
+  const p = ui.photoScan;
+  const loading = p.status === 'loading';
+  const whole = p.crop.w > 0.99 && p.crop.h > 0.99;
+  const body = `
+    <p class="sub" style="margin:0 0 10px">Drag a box around the recipe text — the title, ingredients and directions — and
+      leave out pictures. No box reads the whole photo (fine for screenshots).</p>
+    <div class="scan-stage ${loading ? 'busy' : ''}" data-crop-stage>
+      <img src="${esc(p.src)}" alt="Photo to scan" draggable="false" style="${previewStyle(p)}">
+      <div class="crop-shade" ${whole ? 'hidden' : ''} style="${cropBoxStyle(p.crop)}"></div>
+    </div>
+    <div class="scan-controls">
+      <label class="straighten">Straighten
+        <input type="range" min="-15" max="15" step="0.5" value="${p.angle}" data-action="scan-angle" ${loading ? 'disabled' : ''}
+               aria-label="Straighten the photo, in degrees">
+        <output data-angle-label>${angleLabel(p.angle)}</output>
+      </label>
+      <button class="btn ghost small" data-action="scan-reset" ${loading ? 'disabled' : ''}>Reset box</button>
+      <label class="check"><input type="checkbox" data-action="scan-use-picture" ${p.usePicture ? 'checked' : ''} ${loading ? 'disabled' : ''}>
+        Use this photo as the recipe picture</label>
+    </div>
+    ${loading ? `
+      <div class="link-status loading" role="status">
+        <span class="spinner" aria-hidden="true"></span><span data-busy-message>${esc(p.message)}</span>
+        <progress max="1" value="0" data-busy-progress></progress>
+      </div>` : ''}
+    ${p.status === 'error' ? `
+      <div class="link-status error" role="alert">
+        <p>${esc(p.message)}</p>
+        ${p.text ? '<button class="btn ghost small" data-action="scan-to-text">Edit the scanned text instead</button>' : ''}
+      </div>` : ''}`;
+  const footer = `
+    <button class="btn ghost" data-action="modal-close" ${loading ? 'disabled' : ''}>Cancel</button>
+    <button class="btn" data-action="scan-run" ${loading ? 'disabled' : ''}>${loading ? 'Scanning…' : 'Scan photo'}</button>`;
+  return modal('Scan a photo', body, footer).replace('class="modal"', 'class="modal wide"');
+}
+
+const NO_RECIPE_IN_PHOTO = 'No ingredient list found. Draw the box tightly around the recipe text (leave out pictures), or use Straighten if the photo is turned, and scan again.';
+
+async function runPhotoScan() {
+  const p = ui.photoScan;
+  if (!p || p.status === 'loading') return;
+  Object.assign(p, { status: 'loading', message: 'Starting the text reader…', text: '' });
+  render();
+  let result;
+  try {
+    result = await window.Scanner.ocrPhoto(p.src, { crop: p.crop, angle: p.angle }, setBusyProgress);
+  } catch (e) {
+    if (ui.photoScan !== p) return;
+    Object.assign(p, {
+      status: 'error',
+      message: e.message === 'unreadable' ? 'Couldn\'t open that image — try a JPG or PNG.'
+        : 'The text reader couldn\'t start. Reload the page and try again.',
+    });
+    render();
+    return;
+  }
+  if (ui.photoScan !== p) return;
+  const recipe = scannedRecipe(result.text);
+  if (!recipe || !recipe.ingredients.length) {
+    Object.assign(p, { status: 'error', message: result.text.trim() ? NO_RECIPE_IN_PHOTO : 'No text found in that photo.', text: result.text });
+    render();
+    return;
+  }
+  if (p.usePicture) {
+    try { recipe.image = await photoToDataUrl(p.file); } catch (e) { /* keep going without a picture */ }
+  }
+  if (!openImportedDraft(recipe, 'a photo')) { p.status = 'idle'; render(); }
+}
+
+/* The crop box: drag on the photo. Updated in place (no re-render) so dragging stays smooth. */
+let cropDrag = null;
+document.addEventListener('pointerdown', (e) => {
+  const stage = e.target.closest && e.target.closest('[data-crop-stage]');
+  if (!stage || !ui.photoScan || ui.photoScan.status === 'loading') return;
+  e.preventDefault();
+  const r = stage.getBoundingClientRect();
+  const at = (ev) => ({
+    x: Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)),
+    y: Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height)),
+  });
+  cropDrag = { stage, at, start: at(e) };
+  if (stage.setPointerCapture) stage.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', (e) => {
+  if (!cropDrag || !ui.photoScan) return;
+  const a = cropDrag.start; const b = cropDrag.at(e);
+  const c = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+  ui.photoScan.crop = c;
+  const shade = cropDrag.stage.querySelector('.crop-shade');
+  shade.hidden = false;
+  shade.setAttribute('style', cropBoxStyle(c));
+});
+document.addEventListener('pointerup', () => {
+  if (!cropDrag || !ui.photoScan) { cropDrag = null; return; }
+  const c = ui.photoScan.crop;
+  if (c.w < 0.03 || c.h < 0.03) {          // a click, not a drag: back to the whole photo
+    ui.photoScan.crop = WHOLE_PHOTO();
+    cropDrag.stage.querySelector('.crop-shade').hidden = true;
+  }
+  const img = cropDrag.stage.querySelector('img');
+  if (img) img.setAttribute('style', previewStyle(ui.photoScan));
+  cropDrag = null;
+});
 
 /* ---------------- recipe photos ---------------- */
 
@@ -1565,6 +1742,25 @@ document.addEventListener('click', (e) => {
       break;
     }
 
+    case 'scan-run':
+      runPhotoScan();
+      break;
+
+    case 'scan-reset':
+      if (ui.photoScan) Object.assign(ui.photoScan, { crop: WHOLE_PHOTO(), angle: 0, status: 'idle' }) && render();
+      break;
+
+    case 'scan-to-text':
+      if (ui.photoScan) {
+        ui.importText = window.Scanner.cleanOcrText(ui.photoScan.text);
+        closePhotoScan();
+        ui.view = 'import';
+        ui.focusKey = 'import-text';
+        render();
+        toast('The scanned text is in Text import — fix it up, then Scan text');
+      }
+      break;
+
     case 'reset-demo':
       if (confirm('Reset all demo data? Your recipes, fridge and lists will be replaced with the sample data.')) {
         stopEditing();
@@ -1593,6 +1789,11 @@ document.addEventListener('change', (e) => {
     addPhotoFile(el.files && el.files[0]);
   } else if (action === 'import-file') {
     importTextFile(el.files && el.files[0]);
+  } else if (action === 'import-photo') {
+    openPhotoScan(el.files && el.files[0]);
+    el.value = '';
+  } else if (action === 'scan-use-picture' && ui.photoScan) {
+    ui.photoScan.usePicture = el.checked;
   } else if (action === 'import-pdf') {
     importPdf(el.files && el.files[0]);
     el.value = '';           // choosing the same file again still imports it
@@ -1619,6 +1820,15 @@ document.addEventListener('change', (e) => {
 /* Text fields save as you type without re-rendering (keeps cursor position). */
 document.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.dataset.action === 'scan-angle' && ui.photoScan) {
+    // Straighten: turn the preview in place while dragging the slider (no re-render).
+    ui.photoScan.angle = Number(el.value) || 0;
+    const img = app.querySelector('[data-crop-stage] img');
+    if (img) img.setAttribute('style', previewStyle(ui.photoScan));
+    const label = app.querySelector('[data-angle-label]');
+    if (label) label.textContent = angleLabel(ui.photoScan.angle);
+    return;
+  }
   if (el.dataset.filter === 'q') {
     // Update only the results so the search box keeps focus while typing.
     ui.filter.q = el.value;
@@ -1729,7 +1939,7 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog || ui.pdfPick)) { closeModal(); return; }
+  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog || ui.pdfPick || ui.photoScan)) { closeModal(); return; }
   if (e.key === 'Escape' && e.target.dataset && e.target.dataset.filter === 'q' && e.target.value) {
     e.target.value = '';
     e.target.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1759,6 +1969,7 @@ document.addEventListener('drop', (e) => {
   zone.classList.remove('dragging');
   const file = e.dataTransfer.files[0];
   if (zone.dataset.dropzone === 'pdf') importPdf(file);
+  else if (zone.dataset.dropzone === 'photo-import') openPhotoScan(file);
   else if (ui.editing) addPhotoFile(file);
 });
 
