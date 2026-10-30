@@ -201,3 +201,8 @@ I want you to set up a final demo for me to show the full capabilities of the ap
 [2026-10-29 16:49 EDT]  branch: final-demo-2026-10-29
 
 i want the demo to display whats veen implimented so far, nothing new
+
+----------------------------------------------------------------------
+[2026-10-30 14:18 EDT]  branch: max-final (from final-demo-2026-10-29, merging eman-demo and jay_trial)
+
+okay, its time to implement the rest of the features. on the GitHub repo, my classmates have committed their own tweaks and changes. to start i want you to merge everything into a new branch called max-final that has all of the features in the repo already. then i want you to work on the import from pdf scanner. each new feature should get its own commit to the max-final branch. then i want you to implement the import by picture scanner. after that the load fridge from image button.
