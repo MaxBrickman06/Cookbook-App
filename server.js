@@ -123,10 +123,13 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
 };
 
 /** Only the browser app is served — never server code, tests or git files. */
-const PUBLIC_FILES = new Set(['index.html', 'app.js', 'parser.js', 'cookbook.js', 'styles.css', 'manifest.webmanifest', 'sw.js']);
+const PUBLIC_FILES = new Set(['index.html', 'app.js', 'parser.js', 'cookbook.js', 'scanner.js', 'styles.css', 'manifest.webmanifest', 'sw.js']);
+/** Plus the icons and the PDF / photo reading libraries in vendor/ (run in the browser). */
+const PUBLIC_PATHS = /^(icons\/[\w-]+\.(png|svg)|vendor\/[a-z]+\/[\w.-]+\.(mjs|js))$/;
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -163,7 +166,7 @@ function serveFile(req, res, pathname) {
   const file = path.normalize(path.join(ROOT, rel));
   const inside = file.startsWith(ROOT + path.sep);
   const rel2 = path.relative(ROOT, file).split(path.sep).join('/');
-  const allowed = PUBLIC_FILES.has(rel2) || /^icons\/[\w-]+\.(png|svg)$/.test(rel2);
+  const allowed = PUBLIC_FILES.has(rel2) || PUBLIC_PATHS.test(rel2);
   if (!inside || !allowed || !TYPES[path.extname(file)]) return send(res, 404, 'Not found', 'text/plain');
   fs.readFile(file, (err, data) => {
     if (err) return send(res, 404, 'Not found', 'text/plain');

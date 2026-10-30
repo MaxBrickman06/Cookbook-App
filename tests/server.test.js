@@ -24,7 +24,12 @@ test('serves the app but nothing outside it', async (t) => {
   assert.match(await (await get('/')).text(), /<title>Cookbook/);
   assert.equal((await get('/parser.js')).status, 200);
   assert.equal((await get('/api/health')).status, 200);
-  for (const p of ['/server.js', '/importer.js', '/tests/run.js', '/../server.js', '/%2e%2e/%2e%2e/etc/passwd', '/.git/config', '/package.json/../../etc/hosts']) {
+  const pdfjs = await get('/vendor/pdfjs/pdf.min.mjs');   // PDF import runs pdf.js in the browser
+  assert.equal(pdfjs.status, 200);
+  assert.match(pdfjs.headers.get('content-type'), /javascript/);
+  assert.equal((await get('/scanner.js')).status, 200);
+  assert.equal((await get('/vendor/pdfjs/LICENSE')).status, 404);
+  for (const p of ['/server.js', '/importer.js', '/tests/run.js', '/../server.js', '/%2e%2e/%2e%2e/etc/passwd', '/.git/config', '/package.json/../../etc/hosts', '/vendor/../server.js', '/eman-nextjs/package.json', '/tests/pdfs/blog-print.pdf']) {
     assert.equal((await get(p)).status, 404, p);
   }
   const bad = await get('/api/import?url=not-a-link');

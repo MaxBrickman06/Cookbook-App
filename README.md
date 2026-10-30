@@ -70,8 +70,8 @@ npm start        # just the server — then open http://localhost:3560
 - **Add to List** — appears when anything is red or yellow. It opens a window with all your shopping lists (plus
   *New list*); tick one or several and every needed ingredient is added to each list that doesn't already have it.
   *+ List* on a single row does the same for one ingredient.
-- **Import** — the *⤓ Import* button on the library opens a window: *Import by URL*, *Paste text* or *Text file* (.txt).
-  PDF and Photo are shown as planned. The Import tab has the same link and text importers.
+- **Import** — the *⤓ Import* button on the library opens a window: *Import by URL*, *Paste text*, *Text file* (.txt) or *PDF*.
+  Photo is shown as planned. The Import tab has the same link and text importers.
   Every import opens the recipe **pre-filled in the edit form** — nothing is added to the library until you press
   **Save changes**; **Cancel** leaves the library as it was.
 - **Import → Text** — copy an entire recipe web page and paste it in. The scanner (`parser.js`) skips the
@@ -84,6 +84,14 @@ npm start        # just the server — then open http://localhost:3560
 
   It's rule-based (no AI), so always glance over the result — everything stays editable.
 
+- **Import → PDF** — a recipe saved as a PDF: a web page printed with *Save as PDF*, a recipe card, or a whole
+  cookbook. The text inside the PDF is read in the browser with pdf.js (nothing is uploaded) and put back in reading
+  order — two-column cards are read column by column, directions that wrap onto a second line are joined, and page
+  headers, footers and the date/URL a browser prints are left out — then scanned like pasted text.
+  - A PDF with several recipes (each starts at an *Ingredients* heading) lists them: pick one.
+  - A scanned PDF (a picture of a page) has no text inside → *"That PDF is a picture of a page…"*.
+  - Password-protected or damaged PDFs, files over 30 MB, and other file types get their own message.
+  - No ingredient list found → the PDF's text is put in Text import to fix up.
 - **Import → Link** — paste (or drag in) a link and press **Scan**; the recipe is read automatically, photo included:
   - **Recipe websites:** most recipe sites include hidden, structured recipe data for Google; the app reads that
     first (exact ingredients, steps, times, servings, photo). Otherwise it reads the page text with the scanner.
@@ -133,6 +141,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 
 - `tests/parser.test.js` — pasted articles in `tests/articles/` (food blog, "Step 1" pages, grouped ingredients, no headings)
 - `tests/importer.test.js` — recipe-site data, YouTube descriptions, TikTok/Instagram captions, links to full recipes
+- `tests/pdf.test.js` — real PDFs in `tests/pdfs/`: a recipe card, two columns, a blog page saved as PDF, cookbooks with one and three recipes, a scan, a damaged file
 - `tests/server.test.js` — refuses private network addresses; only serves the app's own files
 - `tests/cookbook.test.js` — the checks named in the requirements spec: `recipe_requires_name` (FR-1),
   `search_matches_all_terms` (FR-2), `add_missing_no_duplicates` (FR-4), `parser_50kb_under_10s` (NFR-1),
@@ -143,6 +152,8 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | --- | --- |
 | `index.html`, `styles.css`, `app.js` | The app (library, recipe page, fridge, lists, import) |
 | `cookbook.js` | The spec's recipe rules shared by the app and tests: names, search, have/on a list/need, adding to lists |
+| `scanner.js` | Reads recipes out of files: PDF text in reading order (and finds the recipes in a cookbook PDF) |
+| `vendor/pdfjs/` | pdf.js 4.10 (Mozilla, Apache-2.0) — reads PDFs in the browser; no install needed |
 | `parser.js` | Rule-based recipe scanner for pasted text and captions (runs in the browser and on the server) |
 | `importer.js` | Reads a recipe from a link: recipe sites, TikTok, Instagram, YouTube |
 | `server.js` | Serves the app and the `/api/import` route; fetches links safely |
@@ -150,7 +161,6 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | `Install Cookbook.cmd`, `launcher/` | Windows desktop icon: one-time setup and the launcher it runs |
 
 ### Planned (shown as placeholders)
-- Import from a PDF
 - Import from a photo of a cookbook page
 - Scan a photo of your fridge to update ingredients
 

@@ -624,3 +624,9 @@ body.modal-open { overflow: hidden; }
 .pick-row .sub { margin: 0; font-size: 12px; }
 .pick-new-name { flex: 1 1 160px; width: auto; padding: 5px 8px; }
 @media (max-width: 520px) { .import-options { grid-template-columns: 1fr; } }
+
+/* ---------- reading files (PDF) ---------- */
+.dropzone.compact { padding: 16px; }
+.link-status progress { flex: 1; min-width: 80px; height: 6px; accent-color: var(--blue); }
+.pick-button { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.pick-button:hover, .pick-button:focus-visible { border-color: var(--blue); }

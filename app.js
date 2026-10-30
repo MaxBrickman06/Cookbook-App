@@ -115,6 +115,8 @@ const ui = {
   editorNotice: null,         // { kind: 'warn' | 'error', text } shown at the top of the edit form
   listPicker: null,           // "Add to List" window: { names: [...], selected: [listIds], newList: bool, newName }
   importDialog: null,         // Import window on the library page: { mode: 'menu' | 'url' | 'text' }
+  busy: null,                 // "Reading cookbook.pdf…" window while a file is read: { title, message }
+  pdfPick: null,              // a PDF with several recipes: { name, pdf, choices: [{ title, from, to }] }
 };
 
 const NO_FILTERS = () => ({ q: '', scope: ui.filter ? ui.filter.scope : 'all', favorites: false, canMake: false, missing: false, maxTime: 0 });
@@ -137,6 +139,11 @@ const sortedRecipes = () => [
 ];
 
 const STAR_PATH = 'M12 2.8l2.82 5.72 6.31.92-4.57 4.45 1.08 6.29L12 17.21l-5.64 2.97 1.08-6.29L2.87 9.44l6.31-.92z';
+const PDF_ICON = `
+  <svg viewBox="0 0 24 24" aria-hidden="true" class="photo-icon">
+    <path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>
+    <path d="M14 3v5h5M9 13h6M9 16.5h6"/>
+  </svg>`;
 const PHOTO_ICON = `
   <svg viewBox="0 0 24 24" aria-hidden="true" class="photo-icon">
     <rect x="3" y="5" width="18" height="14" rx="2.5"/>
@@ -921,6 +928,19 @@ Instructions
       </form>
     </section>
 
+    <section class="panel">
+      <div class="panel-head"><h3>PDF</h3><span class="tag have">new</span></div>
+      <p class="sub" style="margin:0 0 12px">
+        A recipe saved as a PDF — a printed web page, a recipe card or a whole cookbook. The text is read on this
+        computer, put back in reading order, scanned like pasted text and opened for you to check. If the PDF holds
+        several recipes, you pick one.
+      </p>
+      <label class="dropzone compact" data-dropzone="pdf">
+        <input type="file" accept="application/pdf,.pdf" data-action="import-pdf" hidden>
+        ${PDF_ICON}<strong>Choose a PDF</strong><span class="sub">or drag it here</span>
+      </label>
+    </section>
+
     <section class="panel soon">
       <h3>Photo <span class="tag">planned</span></h3>
       <p class="sub">Scan a cookbook page and pull out the recipe text.</p>
@@ -1009,13 +1029,18 @@ function renderImportDialog() {
         <input type="file" accept=".txt,text/plain" data-action="import-file" hidden>
         <strong>Text file</strong><span class="sub">A .txt file from your computer</span>
       </label>
-      ${option('noop', 'PDF <span class="tag">planned</span>', 'Read a recipe saved as a PDF', 'disabled')}
+      <label class="import-option">
+        <input type="file" accept="application/pdf,.pdf" data-action="import-pdf" hidden>
+        <strong>PDF</strong><span class="sub">A recipe or cookbook saved as a PDF</span>
+      </label>
       ${option('noop', 'Photo <span class="tag">planned</span>', 'Scan a photo of a cookbook page', 'disabled')}
     </div>`;
   return modal('Import a recipe', body, '');
 }
 
 function renderModal() {
+  if (ui.busy) return renderBusy();
+  if (ui.pdfPick) return renderPdfPick();
   if (ui.listPicker && ui.view === 'recipe' && !ui.editing) return renderListPicker();
   if (ui.importDialog && ui.view === 'library') return renderImportDialog();
   return '';
@@ -1023,6 +1048,8 @@ function renderModal() {
 
 function closeModal() {
   if (ui.link.status === 'loading') return;   // the scan is still running
+  if (ui.busy) return;                        // a file is still being read
+  ui.pdfPick = null;
   ui.listPicker = null;
   ui.importDialog = null;
   if (ui.link.status === 'error') ui.link = { status: 'idle' };
@@ -1070,6 +1097,106 @@ async function importTextFile(file) {
   const recipe = importRecipeText(await file.text());
   if (!recipe || !recipe.ingredients.length) { toast('No recipe found in that file'); return; }
   openImportedDraft(recipe, file.name);
+}
+
+/* ---------------- PDF import ---------------- */
+
+const PDF_MAX_BYTES = 30 * 1024 * 1024;
+const NEEDS_SERVER = 'needs the app\'s server — open Cookbook from the desktop icon, or run npm start and go to http://localhost:3560';
+
+/** "Reading cookbook.pdf…" with a progress bar, while a file is read. It can't be closed meanwhile. */
+function renderBusy() {
+  return modal(esc(ui.busy.title), `
+    <div class="link-status loading" role="status">
+      <span class="spinner" aria-hidden="true"></span><span data-busy-message>${esc(ui.busy.message)}</span>
+      <progress max="1" value="0" data-busy-progress></progress>
+    </div>`, '');
+}
+
+function setBusyProgress(fraction, message) {
+  const bar = app.querySelector('[data-busy-progress]');
+  const msg = app.querySelector('[data-busy-message]');
+  if (bar) bar.value = fraction;
+  if (msg && message) msg.textContent = message;
+}
+
+/** A cookbook PDF with several recipes: pick the one to import. */
+function renderPdfPick() {
+  const p = ui.pdfPick;
+  const pages = (c) => (c.from === c.to ? `page ${c.from + 1}` : `pages ${c.from + 1}–${c.to + 1}`);
+  const body = `
+    <p class="sub" style="margin:0 0 10px">${esc(p.name)} has ${plural(p.choices.length, 'recipe')}. Which one do you want?</p>
+    <div class="pick-list">${p.choices.map((c, i) => `
+      <button class="pick-row pick-button" data-action="pdf-pick" data-index="${i}">
+        <span class="pick-name">${esc(c.title || 'Untitled recipe')}</span><span class="sub">${pages(c)}</span>
+      </button>`).join('')}
+    </div>
+    ${p.truncated ? `<p class="sub" style="margin:10px 0 0">Only the first ${p.readPages} of ${p.numPages} pages were searched.</p>` : ''}`;
+  return modal('Pick a recipe', body, '<button class="btn ghost" data-action="modal-close">Cancel</button>');
+}
+
+/** Turn some of a PDF's pages into a draft recipe, or hand the text to Text import when there's no recipe in it. */
+function importPdfPages(pdf, from, to, name) {
+  const text = window.Scanner.joinPages(pdf.pages, from, to);
+  const recipe = importRecipeText(text);
+  if (recipe && recipe.ingredients.length) {
+    if (!openImportedDraft(recipe, name)) render();
+    return;
+  }
+  ui.importText = text;
+  ui.view = 'import';
+  ui.focusKey = 'import-text';
+  render();
+  toast('No ingredient list found in that PDF — its text is in Text import below to fix up');
+}
+
+async function importPdf(file) {
+  if (!file) return;
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast('Choose a PDF file'); return; }
+  if (file.size > PDF_MAX_BYTES) { toast('That PDF is over 30 MB — save just the recipe pages as a new PDF'); return; }
+  if (!SERVER_MODE) { toast(`Reading a PDF ${NEEDS_SERVER}`); return; }
+  if (!confirmLeaveEditor()) return;
+  ui.importDialog = null;
+  ui.busy = { title: `Reading ${file.name}`, message: 'Reading the PDF…' };
+  render();
+
+  let pdf;
+  try {
+    pdf = await window.Scanner.readPdf(file, (f) => setBusyProgress(f, `Reading the PDF… ${Math.round(f * 100)}%`));
+  } catch (e) {
+    ui.busy = null;
+    render();
+    toast(e.code === 'password' ? 'That PDF is password-protected — open it, save an unlocked copy, and try again'
+      : e.code === 'unreadable' ? 'Couldn\'t open that PDF — the file may be damaged'
+        : 'The PDF reader couldn\'t start — reload the page and try again');
+    return;
+  }
+  ui.busy = null;
+
+  const textChars = pdf.pageTexts.join('').replace(/\s/g, '').length;
+  if (textChars < 40) {
+    render();
+    toast('That PDF is a picture of a page, with no text inside to read');
+    return;
+  }
+  if (pdf.recipes.length > 1) {
+    ui.pdfPick = {
+      name: file.name,
+      pdf,
+      numPages: pdf.numPages,
+      readPages: pdf.readPages,
+      truncated: pdf.readPages < pdf.numPages,
+      choices: pdf.recipes.map((r) => {
+        const parsed = window.RecipeParser.parseRecipe(window.Scanner.joinPages(pdf.pages, r.from, r.to));
+        return { ...r, title: parsed ? parsed.name : '' };
+      }),
+    };
+    render();
+    return;
+  }
+  const one = pdf.recipes[0];
+  // One recipe: its pages. No "Ingredients" heading at all: the first few pages, scanned as they are.
+  importPdfPages(pdf, one ? one.from : 0, one ? one.to : Math.min(pdf.pages.length, 6) - 1, file.name);
 }
 
 /* ---------------- recipe photos ---------------- */
@@ -1429,6 +1556,15 @@ document.addEventListener('click', (e) => {
       break;
     }
 
+    case 'pdf-pick': {
+      const p = ui.pdfPick;
+      const c = p && p.choices[Number(el.dataset.index)];
+      if (!c) break;
+      ui.pdfPick = null;
+      importPdfPages(p.pdf, c.from, c.to, p.name);
+      break;
+    }
+
     case 'reset-demo':
       if (confirm('Reset all demo data? Your recipes, fridge and lists will be replaced with the sample data.')) {
         stopEditing();
@@ -1457,6 +1593,9 @@ document.addEventListener('change', (e) => {
     addPhotoFile(el.files && el.files[0]);
   } else if (action === 'import-file') {
     importTextFile(el.files && el.files[0]);
+  } else if (action === 'import-pdf') {
+    importPdf(el.files && el.files[0]);
+    el.value = '';           // choosing the same file again still imports it
   } else if (action === 'filter-time') {
     ui.filter.maxTime = Number(el.value) || 0;
     render();
@@ -1590,7 +1729,7 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog)) { closeModal(); return; }
+  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog || ui.pdfPick)) { closeModal(); return; }
   if (e.key === 'Escape' && e.target.dataset && e.target.dataset.filter === 'q' && e.target.value) {
     e.target.value = '';
     e.target.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1618,7 +1757,9 @@ document.addEventListener('drop', (e) => {
   if (!zone) return;
   e.preventDefault();
   zone.classList.remove('dragging');
-  if (ui.editing) addPhotoFile(e.dataTransfer.files[0]);
+  const file = e.dataTransfer.files[0];
+  if (zone.dataset.dropzone === 'pdf') importPdf(file);
+  else if (ui.editing) addPhotoFile(file);
 });
 
 render();

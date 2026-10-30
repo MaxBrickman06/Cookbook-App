@@ -472,6 +472,9 @@
   function titleCandidate(line) {
     if (isJunk(line) || isIngHeading(line) || isStepHeading(line) || isStopHeading(line)) return false;
     if (NAV_WORDS.test(line) || /[»›|>]\s*\S/.test(line) && /[»›>]/.test(line)) return false;
+    // A site menu on one line: "Home | Recipes | About | Shop my kitchen".
+    const parts = line.split(/\s+[|•·/]\s+/);
+    if (parts.length >= 3 && parts.filter((p) => NAV_WORDS.test(p.trim())).length * 2 >= parts.length) return false;
     if (line.length > 90 || words(line).length > 14) return false;
     if (/[.!?,;]$/.test(line) && !/\.\.\.$/.test(line)) return false;
     if (/^(by|from|updated|published|posted|written|jump|this post|serves|servings|yield|prep|cook|total)\b/i.test(line)) return false;
