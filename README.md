@@ -63,6 +63,17 @@ npm start        # just the server — then open http://localhost:3560
   storage. In the library each card shows the photo as a thumbnail under the title, with the favorite star
   sitting on its corner. Recipes without a photo show an empty frame — click it to add one.
 - **Fridge** — keep track of what you have at home. Shows which recipes you can make right now.
+- **Load fridge from image** (Fridge tab) — choose or drag in a photo of your fridge. A window shows the photo beside
+  your whole fridge as tick boxes, and nothing changes until you press **Update fridge (+3, −1)**:
+  - *Anything else you see?* — tick what's in the photo. Suggestions come from your shopping lists first (what you just
+    bought), then your recipes' ingredients, then common fridge staples; type anything else.
+  - *In your fridge now* — already ticked; untick what's used up and it's removed.
+  - Items added are checked off your shopping lists.
+  - **Optional Gemini:** recognising food in a photo needs an image AI, so it's opt-in (like Jayant's Gemini importer).
+    Paste a free Gemini API key from Google AI Studio once and the photo is sent to Google, which lists what it sees;
+    the items come back pre-ticked and matched to your own names ("Large brown eggs" → *Eggs*). The key is kept only
+    in this browser (*Forget my key* removes it). A rejected key, the free limit running out or no internet each get
+    a plain message, and you can still tick by hand.
 - **Lists** — create multiple named shopping lists, check items off, and move bought items into the fridge.
 - **Fridge check** — each recipe's ingredients are sorted and coloured: **red** = not in your fridge or on any list
   (shown first), **yellow** = not in your fridge but already on a shopping list, **blue** = in your fridge.
@@ -157,6 +168,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 - `tests/importer.test.js` — recipe-site data, YouTube descriptions, TikTok/Instagram captions, links to full recipes
 - `tests/pdf.test.js` — real PDFs in `tests/pdfs/`: a recipe card, two columns, a blog page saved as PDF, cookbooks with one and three recipes, a scan, a damaged file
 - `tests/scanner.test.js` — what the OCR engine read from the photos in `demo/` (recorded in `tests/ocr/`) is cleaned up and scanned into the right recipe
+- `tests/fridge.test.js` — fridge-photo names and suggestions, and the Gemini request/answers/errors (with a fake network — no key needed)
 - `tests/server.test.js` — refuses private network addresses; only serves the app's own files
 - `tests/cookbook.test.js` — the checks named in the requirements spec: `recipe_requires_name` (FR-1),
   `search_matches_all_terms` (FR-2), `add_missing_no_duplicates` (FR-4), `parser_50kb_under_10s` (NFR-1),
@@ -167,7 +179,7 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | --- | --- |
 | `index.html`, `styles.css`, `app.js` | The app (library, recipe page, fridge, lists, import) |
 | `cookbook.js` | The spec's recipe rules shared by the app and tests: names, search, have/on a list/need, adding to lists |
-| `scanner.js` | Reads recipes out of files: PDF text in reading order (and finds the recipes in a cookbook PDF); photos and scanned pages through OCR, with image clean-up and flattening |
+| `scanner.js` | Reads recipes out of files: PDF text in reading order (and finds the recipes in a cookbook PDF); photos and scanned pages through OCR, with image clean-up and flattening; fridge-photo suggestions, name matching and the optional Gemini request |
 | `vendor/pdfjs/` | pdf.js 4.10 (Mozilla, Apache-2.0) — reads PDFs in the browser; no install needed |
 | `vendor/tesseract/` | Tesseract.js 6 with the English model (Apache-2.0) — reads text in photos in the browser |
 | `parser.js` | Rule-based recipe scanner for pasted text and captions (runs in the browser and on the server) |
@@ -175,9 +187,6 @@ node tests/run.js    # print what the scanner pulls out of each sample article
 | `server.js` | Serves the app and the `/api/import` route; fetches links safely |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Make the app installable and able to receive shared links |
 | `Install Cookbook.cmd`, `launcher/` | Windows desktop icon: one-time setup and the launcher it runs |
-
-### Planned (shown as placeholders)
-- Scan a photo of your fridge to update ingredients
 
 Data is saved in your browser's localStorage (about 5 MB — roughly 30–60 recipe photos). If it fills up,
 the app tells you instead of silently dropping the photo. Use **Reset demo data** in the footer to restore the sample recipes.

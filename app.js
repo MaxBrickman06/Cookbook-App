@@ -118,6 +118,7 @@ const ui = {
   busy: null,                 // "Reading cookbook.pdf…" window while a file is read: { title, message }
   pdfPick: null,              // a PDF with several recipes: { name, pdf, choices: [{ title, from, to }] }
   photoScan: null,            // Scan a photo window: { file, src, crop, angle, usePicture, status, message, text }
+  fridgeScan: null,           // Load fridge from image: { dataUrl, keep, picked, found, suggestions, ai: { status, message } }
 };
 
 const NO_FILTERS = () => ({ q: '', scope: ui.filter ? ui.filter.scope : 'all', favorites: false, canMake: false, missing: false, maxTime: 0 });
@@ -752,10 +753,15 @@ function renderFridge() {
         : '<p class="sub">Nothing yet — every recipe is missing at least one ingredient.</p>'}
     </section>
 
-    <div class="placeholder">
-      <div class="ph-title">Scan fridge photo</div>
-      Planned: take a photo of your fridge to update this list automatically. Not part of this demo.
-    </div>`;
+    <section class="panel">
+      <div class="panel-head"><h3>Update from a photo</h3><span class="tag have">new</span></div>
+      <p class="sub" style="margin:0 0 12px">Take a photo of your fridge after shopping. You tick what's in it — or, with a
+        Gemini key, Gemini spots the items for you — and nothing changes until you confirm.</p>
+      <label class="dropzone compact" data-dropzone="fridge">
+        <input type="file" accept="image/*" data-action="fridge-photo" hidden>
+        ${PHOTO_ICON}<strong>Load fridge from image</strong><span class="sub">choose a photo, or drag it here</span>
+      </label>
+    </section>`;
 }
 
 function renderLists() {
@@ -1054,6 +1060,7 @@ function renderModal() {
   if (ui.busy) return renderBusy();
   if (ui.pdfPick) return renderPdfPick();
   if (ui.photoScan) return renderPhotoScan();
+  if (ui.fridgeScan && ui.view === 'fridge') return renderFridgeScan();
   if (ui.listPicker && ui.view === 'recipe' && !ui.editing) return renderListPicker();
   if (ui.importDialog && ui.view === 'library') return renderImportDialog();
   return '';
@@ -1063,7 +1070,9 @@ function closeModal() {
   if (ui.link.status === 'loading') return;   // the scan is still running
   if (ui.busy) return;                        // a file is still being read
   if (ui.photoScan && ui.photoScan.status === 'loading') return;
+  if (ui.fridgeScan && ui.fridgeScan.ai.status === 'loading') return;
   closePhotoScan();
+  ui.fridgeScan = null;
   ui.pdfPick = null;
   ui.listPicker = null;
   ui.importDialog = null;
@@ -1375,6 +1384,148 @@ document.addEventListener('pointerup', () => {
   if (img) img.setAttribute('style', previewStyle(ui.photoScan));
   cropDrag = null;
 });
+
+/* ---------------- load fridge from image (design doc: fridge photos) ---------------- */
+
+/** Every ingredient name the cook already uses — so "Large brown eggs" from a photo becomes their "Eggs". */
+function knownIngredientNames() {
+  const names = [...state.fridge];
+  state.recipes.forEach((r) => names.push(...r.ingredients));
+  state.lists.forEach((l) => l.items.forEach((i) => names.push(i.name)));
+  return names;
+}
+
+async function openFridgeScan(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { toast('That file isn\'t an image — choose a JPG or PNG photo'); return; }
+  let dataUrl;
+  try { dataUrl = await photoToDataUrl(file); } catch (e) { toast('Couldn\'t open that image — try a JPG or PNG'); return; }
+  ui.fridgeScan = {
+    dataUrl,
+    keep: [...state.fridge],     // what's in the fridge now: ticked; untick what's used up
+    picked: [],                  // new items ticked to add
+    found: [],                   // what Gemini saw: [{ name, found }]
+    suggestions: window.Scanner.fridgeSuggestions(state.recipes, state.lists, state.fridge),
+    ai: { status: 'idle', message: '' },
+  };
+  render();
+  if (window.Scanner.geminiKey()) runFridgeAi();
+}
+
+const hasName = (list, name) => list.some((n) => norm(n) === norm(name));
+
+function fridgeChanges(f) {
+  const adds = f.picked.filter((n) => !inFridge(n));
+  const removes = state.fridge.filter((n) => !hasName(f.keep, n));
+  return { adds, removes };
+}
+
+function fridgeChip(name, on, note = '', action = 'fridge-pick') {
+  return `<button class="pick-chip ${on ? 'on' : ''}" data-action="${action}" data-name="${esc(name)}" aria-pressed="${on}">
+    ${on ? '✓' : '+'} ${esc(name)}${note ? ` <span class="chip-note">${esc(note)}</span>` : ''}</button>`;
+}
+
+function renderFridgeScan() {
+  const f = ui.fridgeScan;
+  const hasKey = Boolean(window.Scanner.geminiKey());
+  const foundNew = f.found.filter((x) => !inFridge(x.name));
+  const shown = [...foundNew.map((x) => x.name), ...state.fridge];
+  const others = [...f.suggestions, ...f.picked].filter((n, i, all) => !hasName(shown, n) && all.findIndex((m) => norm(m) === norm(n)) === i);
+
+  let ai;
+  if (f.ai.status === 'loading') {
+    ai = '<div class="link-status loading" role="status"><span class="spinner" aria-hidden="true"></span>Gemini is looking at the photo…</div>';
+  } else if (hasKey) {
+    ai = `
+      <div class="ai-row">
+        <button class="btn small" data-action="fridge-ai">✨ ${f.ai.status === 'done' ? 'Look again' : 'Find items with Gemini'}</button>
+        <button class="link-btn" data-action="gemini-forget">Forget my key</button>
+      </div>`;
+  } else {
+    ai = `
+      <details class="ai-key">
+        <summary>Optional: let Gemini spot the items</summary>
+        <p class="sub">Recognising food in a photo needs an image AI. Paste a free Gemini API key from
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio ↗</a>
+          and this photo is sent to Google, which lists what it sees. The key is kept only in this browser.</p>
+        <form class="inline-form" data-form="gemini-key">
+          <input type="password" name="key" autocomplete="off" placeholder="Gemini API key" aria-label="Gemini API key">
+          <button class="btn small">Save &amp; look</button>
+        </form>
+      </details>`;
+  }
+  if (f.ai.status === 'error') ai += `<div class="link-status error" role="alert"><p>${esc(f.ai.message)}</p></div>`;
+
+  const { adds, removes } = fridgeChanges(f);
+  const body = `
+    <div class="fridge-scan">
+      <img class="fridge-photo" src="${f.dataUrl}" alt="Your fridge photo">
+      <div class="fridge-pick">
+        ${ai}
+        ${foundNew.length ? `
+          <h4>Gemini found</h4>
+          <div class="pick-chips">${foundNew.map((x) => fridgeChip(x.name, hasName(f.picked, x.name),
+            norm(x.found) !== norm(x.name) ? `“${x.found}”` : '')).join('')}</div>` : ''}
+        <h4>Anything else you see?</h4>
+        <div class="pick-chips">${others.map((n) => fridgeChip(n, hasName(f.picked, n))).join('') || '<span class="sub">No suggestions — add items below.</span>'}</div>
+        <form class="inline-form" data-form="fridge-extra">
+          <input type="text" name="item" data-focus="fridge-extra" autocomplete="off" placeholder="Something else, e.g. string cheese">
+          <button class="btn ghost small">Add</button>
+        </form>
+        ${state.fridge.length ? `
+          <h4>In your fridge now <span class="h4-note">— untick what's used up</span></h4>
+          <div class="pick-chips">${state.fridge.map((n) => fridgeChip(n, hasName(f.keep, n), '', 'fridge-keep')).join('')}</div>` : ''}
+      </div>
+    </div>`;
+  const label = adds.length || removes.length
+    ? `Update fridge (${[adds.length ? `+${adds.length}` : '', removes.length ? `−${removes.length}` : ''].filter(Boolean).join(', ')})`
+    : 'Update fridge';
+  const footer = `
+    <button class="btn ghost" data-action="modal-close">Cancel</button>
+    <button class="btn" data-action="fridge-scan-confirm" ${adds.length || removes.length ? '' : 'disabled'}>${label}</button>`;
+  return modal('What\'s in your fridge?', body, footer).replace('class="modal"', 'class="modal wide"');
+}
+
+async function runFridgeAi() {
+  const f = ui.fridgeScan;
+  const key = window.Scanner.geminiKey();
+  if (!f || !key || f.ai.status === 'loading') return;
+  f.ai = { status: 'loading', message: '' };
+  render();
+  try {
+    const items = await window.Scanner.geminiFridgeItems(f.dataUrl, key);
+    if (ui.fridgeScan !== f) return;
+    f.found = window.Scanner.matchToKnown(items, knownIngredientNames());
+    f.found.forEach((x) => { if (!inFridge(x.name) && !hasName(f.picked, x.name)) f.picked.push(x.name); });
+    f.ai = { status: 'done', message: '' };
+    const fresh = f.found.filter((x) => !inFridge(x.name)).length;
+    toast(f.found.length
+      ? `Gemini found ${plural(f.found.length, 'item')}${fresh < f.found.length ? ` (${f.found.length - fresh} already in your fridge)` : ''} — untick anything that's wrong`
+      : 'Gemini didn\'t recognise any food — tick what you see');
+  } catch (e) {
+    if (ui.fridgeScan !== f) return;
+    if (e.code === 'key') window.Scanner.setGeminiKey('');   // a bad key is forgotten so it can be fixed
+    f.ai = { status: 'error', message: e.message };
+  }
+  render();
+}
+
+function confirmFridgeScan() {
+  const f = ui.fridgeScan;
+  if (!f) return;
+  const { adds, removes } = fridgeChanges(f);
+  state.fridge = state.fridge.filter((n) => hasName(f.keep, n));
+  addToFridge(adds);
+  // What's now in the fridge has been bought: check it off the shopping lists.
+  let checked = 0;
+  state.lists.forEach((l) => l.items.forEach((i) => { if (!i.done && hasName(adds, i.name)) { i.done = true; checked++; } }));
+  save();
+  ui.fridgeScan = null;
+  render();
+  const parts = [adds.length ? `added ${plural(adds.length, 'item')}` : '', removes.length ? `removed ${removes.length}` : '',
+    checked ? `${checked} checked off your lists` : ''].filter(Boolean);
+  toast(`Fridge updated: ${parts.join(' · ')}`);
+}
 
 /* ---------------- recipe photos ---------------- */
 
@@ -1761,6 +1912,39 @@ document.addEventListener('click', (e) => {
       }
       break;
 
+    case 'fridge-pick': {
+      const f = ui.fridgeScan;
+      if (!f) break;
+      const i = f.picked.findIndex((n) => norm(n) === norm(el.dataset.name));
+      if (i > -1) f.picked.splice(i, 1); else f.picked.push(el.dataset.name);
+      render();
+      break;
+    }
+
+    case 'fridge-keep': {
+      const f = ui.fridgeScan;
+      if (!f) break;
+      const i = f.keep.findIndex((n) => norm(n) === norm(el.dataset.name));
+      if (i > -1) f.keep.splice(i, 1); else f.keep.push(el.dataset.name);
+      render();
+      break;
+    }
+
+    case 'fridge-ai':
+      runFridgeAi();
+      break;
+
+    case 'gemini-forget':
+      window.Scanner.setGeminiKey('');
+      if (ui.fridgeScan) ui.fridgeScan.ai = { status: 'idle', message: '' };
+      render();
+      toast('Your Gemini key was removed from this browser');
+      break;
+
+    case 'fridge-scan-confirm':
+      confirmFridgeScan();
+      break;
+
     case 'reset-demo':
       if (confirm('Reset all demo data? Your recipes, fridge and lists will be replaced with the sample data.')) {
         stopEditing();
@@ -1789,6 +1973,9 @@ document.addEventListener('change', (e) => {
     addPhotoFile(el.files && el.files[0]);
   } else if (action === 'import-file') {
     importTextFile(el.files && el.files[0]);
+  } else if (action === 'fridge-photo') {
+    openFridgeScan(el.files && el.files[0]);
+    el.value = '';
   } else if (action === 'import-photo') {
     openPhotoScan(el.files && el.files[0]);
     el.value = '';
@@ -1916,6 +2103,23 @@ document.addEventListener('submit', (e) => {
       importLink(value);
       return;
 
+    case 'gemini-key': {
+      const k = value.trim();
+      if (!k) { toast('Paste your Gemini API key first'); return; }
+      window.Scanner.setGeminiKey(k);
+      runFridgeAi();
+      return;
+    }
+
+    case 'fridge-extra': {
+      const f = ui.fridgeScan;
+      if (!f) return;
+      splitItems(value).forEach((n) => { if (!hasName(f.picked, n) && !inFridge(n)) f.picked.push(n); });
+      ui.focusKey = 'fridge-extra';
+      render();
+      return;
+    }
+
     case 'image-url': {
       const url = value.trim();
       if (!/^https?:\/\/\S+$/i.test(url)) { toast('Paste a full image link starting with https://'); return; }
@@ -1939,7 +2143,7 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog || ui.pdfPick || ui.photoScan)) { closeModal(); return; }
+  if (e.key === 'Escape' && (ui.listPicker || ui.importDialog || ui.pdfPick || ui.photoScan || ui.fridgeScan)) { closeModal(); return; }
   if (e.key === 'Escape' && e.target.dataset && e.target.dataset.filter === 'q' && e.target.value) {
     e.target.value = '';
     e.target.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1970,6 +2174,7 @@ document.addEventListener('drop', (e) => {
   const file = e.dataTransfer.files[0];
   if (zone.dataset.dropzone === 'pdf') importPdf(file);
   else if (zone.dataset.dropzone === 'photo-import') openPhotoScan(file);
+  else if (zone.dataset.dropzone === 'fridge') openFridgeScan(file);
   else if (ui.editing) addPhotoFile(file);
 });
 

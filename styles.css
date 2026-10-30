@@ -645,3 +645,19 @@ body.modal-open { overflow: hidden; }
 .scan-controls .straighten, .scan-controls .check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .scan-controls input[type=range] { width: 160px; accent-color: var(--blue); }
 .scan-controls output { min-width: 42px; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---------- load fridge from image ---------- */
+.fridge-scan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 700px) { .fridge-scan { grid-template-columns: 1fr; } }
+.fridge-photo { width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; }
+.fridge-pick h4 { margin: 14px 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.fridge-pick h4 .h4-note { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.pick-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pick-chip { border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 13px; cursor: pointer; color: var(--muted); }
+.pick-chip:hover, .pick-chip:focus-visible { border-color: var(--blue); color: var(--text); }
+.pick-chip.on { background: var(--blue-bg); border-color: rgba(106, 168, 255, .55); color: var(--blue); }
+.chip-note { color: var(--muted); font-size: 11px; }
+.ai-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.ai-key { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 14px; }
+.ai-key summary { cursor: pointer; color: var(--blue); }
+.ai-key .sub { font-size: 13px; margin: 8px 0; }

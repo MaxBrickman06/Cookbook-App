@@ -13,6 +13,10 @@
  *          box the cook draws and turned into clean black-on-white text, and lines that bend (a page curving into
  *          the spine, a photo taken at an angle) are flattened; typical OCR misreads are tidied, then parser.js
  *          reads it like pasted text.
+ *   Fridge — design doc "let users add photos of their fridge to be scanned and update ingredients". Reading food
+ *          (not text) needs an image AI, so it is optional: with the cook's own Gemini API key (as in Jayant's
+ *          importer) the photo goes to Google, which lists what it sees. Without one, the cook ticks what they see
+ *          from suggestions. Either way nothing changes until the cook confirms.
  *
  * The functions that decide what the text says (buildPageLines, joinPages, findRecipePages, readPdfText,
  * cleanOcrText) take plain data or a pdf.js object, so the tests run them in Node on real files.
@@ -302,6 +306,104 @@
       return fixed;
     });
     return r;
+  }
+
+  /* ---------------- fridge photos ---------------- */
+
+  /** Matching key: lower case, plain letters, simple plurals dropped ("Large Brown Eggs" → "large brown egg"). */
+  const itemKey = (s) => norm(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+    .split(' ').map((w) => (w.length > 3 ? w.replace(/(es|s)$/, '') : w)).join(' ');
+
+  const titleCase = (s) => String(s).trim().replace(/\s+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+
+  /**
+   * Put names found in a photo onto the names the cook already uses, so they light up recipes:
+   * "Large brown eggs" → "Eggs", "Shredded Mozzarella" → "Mozzarella", "romaine" → "Romaine lettuce".
+   * Unknown items keep their own name. Returns [{ name, found }], no duplicates.
+   */
+  function matchToKnown(found, known) {
+    const knownKeys = known.map((k) => ({ name: k, key: itemKey(k) })).filter((k) => k.key)
+      .sort((a, b) => b.key.length - a.key.length);   // the most specific name first
+    const out = [];
+    found.forEach((raw) => {
+      const k = itemKey(raw);
+      if (!k) return;
+      const hit = knownKeys.find((x) => x.key === k)
+        || knownKeys.find((x) => (` ${k} `).includes(` ${x.key} `))                      // "large brown egg" has "egg"
+        || knownKeys.find((x) => k.length >= 4 && (` ${x.key} `).includes(` ${k} `));     // "romaine" → "romaine lettuce"
+      const name = hit ? hit.name : titleCase(raw);
+      if (!out.some((o) => norm(o.name) === norm(name))) out.push({ name, found: String(raw).trim() });
+    });
+    return out;
+  }
+
+  const STAPLES = ['Milk', 'Eggs', 'Butter', 'Cheese', 'Cream cheese', 'Sour cream', 'Yogurt', 'Bread', 'Lettuce',
+    'Tomatoes', 'Onions', 'Carrots', 'Bell peppers', 'Spinach', 'Chicken', 'Ground beef', 'Bacon', 'Ham',
+    'Orange juice', 'Apples', 'Lemons', 'Ketchup', 'Mustard', 'Mayonnaise'];
+
+  /**
+   * What to offer as tick boxes beside a fridge photo: what the shopping lists still need first (that's what
+   * was just bought), then what the recipes use, then common fridge staples. Nothing already in the fridge.
+   */
+  function fridgeSuggestions(recipes, lists, fridge) {
+    const seen = new Set(fridge.map(itemKey));
+    const out = [];
+    const add = (n) => { const k = itemKey(n); if (k && !seen.has(k)) { seen.add(k); out.push(n); } };
+    lists.forEach((l) => l.items.filter((i) => !i.done).forEach((i) => add(i.name)));
+    recipes.forEach((r) => (r.ingredients || []).forEach(add));
+    STAPLES.forEach(add);
+    return out;
+  }
+
+  const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-3.6-flash', 'gemini-2.5-flash'];
+  const FRIDGE_PROMPT = 'This is a photo of the inside of a home refrigerator. List every food or drink you can identify, '
+    + 'as short generic grocery names a recipe would use (for example "Eggs", "Mozzarella", "Sour cream", '
+    + '"Romaine lettuce", "Cream cheese"). Read the package labels to decide. Leave out shelves, empty containers, '
+    + 'anything you cannot identify and anything that is not food. Answer with a JSON array of strings only.';
+
+  /**
+   * Ask Gemini what food is in a photo (a base64 data URL). Returns an array of names, at most 40.
+   * Errors carry a message for the cook and .code: 'key' | 'quota' | 'network' | 'answer' | 'unavailable'.
+   * fetchFn is injectable for the tests.
+   */
+  async function geminiFridgeItems(dataUrl, apiKey, fetchFn = (typeof fetch !== 'undefined' ? fetch : null)) {
+    const fail = (code, message) => Object.assign(new Error(message), { code });
+    const m = /^data:([^;,]+);base64,(.+)$/.exec(dataUrl || '');
+    if (!m) throw fail('answer', 'Couldn\'t read that photo.');
+    if (!String(apiKey || '').trim()) throw fail('key', 'Add your Gemini API key first.');
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: FRIDGE_PROMPT }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
+      generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: { type: 'ARRAY', items: { type: 'STRING' } } },
+    });
+    let last = fail('unavailable', 'Gemini isn\'t available right now — tick what you see instead.');
+    for (const model of GEMINI_MODELS) {
+      let res;
+      try {
+        res = await fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey.trim() },
+          body,
+          signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(45000) : undefined,
+        });
+      } catch (e) {
+        throw fail('network', 'Couldn\'t reach Gemini — check the internet connection, or tick what you see instead.');
+      }
+      let json = {};
+      try { json = await res.json(); } catch (e) { /* no body */ }
+      const msg = String((json.error && json.error.message) || '');
+      if (res.status === 404) continue;                                    // that model isn't offered: try the next
+      if (res.status === 401 || res.status === 403 || /api key/i.test(msg)) {
+        throw fail('key', 'Gemini didn\'t accept that API key. Check it, or tick what you see instead.');
+      }
+      if (res.status === 429) throw fail('quota', 'Gemini says the free limit is used up for now — tick what you see instead.');
+      if (!res.ok) { last = fail('unavailable', `Gemini couldn't look at the photo (error ${res.status}) — tick what you see instead.`); continue; }
+      const text = (((json.candidates || [])[0] || {}).content || { parts: [] }).parts.map((p) => p.text || '').join('');
+      let items;
+      try { items = JSON.parse(text); } catch (e) { items = null; }
+      if (!Array.isArray(items)) throw fail('answer', 'Gemini\'s answer couldn\'t be read — tick what you see instead.');
+      return items.map((x) => String(x).trim()).filter(Boolean).slice(0, 40);
+    }
+    throw last;
   }
 
   /* ---------------- browser only ---------------- */
@@ -617,6 +719,19 @@
     return text.trim();
   }
 
+  /* ---- Gemini key (kept only in this browser) ---- */
+
+  const GEMINI_KEY_STORE = 'cookbook-gemini-key';
+  function geminiKey() {
+    try { return localStorage.getItem(GEMINI_KEY_STORE) || ''; } catch (e) { return ''; }
+  }
+  function setGeminiKey(k) {
+    try {
+      if (k) localStorage.setItem(GEMINI_KEY_STORE, k.trim()); else localStorage.removeItem(GEMINI_KEY_STORE);
+    } catch (e) { /* storage blocked: the key just isn't remembered */ }
+  }
+
+
   /** A PDF File → { pages, pageTexts, recipes: [{ from, to }], numPages, readPages, doc }. */
   async function readPdf(file, progress) {
     const lib = await getPdfjs();
@@ -628,6 +743,7 @@
   const api = {
     buildPageLines, joinPages, findRecipePages, readPdfText, readPdf, cleanOcrText, parseScannedText,
     preloadOcr, ocrPhoto, ocrPdfPages, ocrInput,
+    matchToKnown, fridgeSuggestions, geminiFridgeItems, geminiKey, setGeminiKey, GEMINI_MODELS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Scanner = api;
